@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cstdio>
 #include "search_algs.h"
 
 __global__ void search_alg1(int nVars, int nClauses, int hardWeight,
