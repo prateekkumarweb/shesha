@@ -2,7 +2,29 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <signal.h>
 #include "search_algs.h"
+
+int nVars;
+int *d_best_model;
+int *best_model;
+
+void sigint_handler(int sig) {
+  if (sig == SIGINT) {
+    std::cout << "Exiting ..." << std::endl;
+    //exit(1);
+    cudaStream_t s;
+    cudaStreamCreate(&s);
+    cudaMemcpyAsync(best_model, d_best_model, nVars * sizeof(int),
+             cudaMemcpyDeviceToHost, s);
+    cudaStreamDestroy(s);
+    for (int i = 0; i < nVars; i++) {
+      std::cout << (best_model[i] == 1 ? (i + 1) : -(i + 1)) << " ";
+    }
+    std::cout << std::endl;
+    exit(1);
+  }
+}
 
 bool parse_input(int &nVars, int &nClauses, int &hardWeight,
                  std::vector<int> &input_vec, std::vector<int> &clauses,
@@ -54,8 +76,8 @@ bool parse_input(int &nVars, int &nClauses, int &hardWeight,
 }
 
 int main() {
-
-  int nVars, nClauses, hardWeight;
+  signal(SIGINT, sigint_handler);
+  int nClauses, hardWeight;
   std::vector<int> input_vec, clauses_vec, weights_vec;
 
   if (!parse_input(nVars, nClauses, hardWeight, input_vec, clauses_vec,
@@ -68,7 +90,7 @@ int main() {
   int *clauses = clauses_vec.data();
   int *weights = weights_vec.data();
   int *model = new int[nVars];
-  int *best_model = new int[nVars];
+  best_model = new int[nVars];
   float *scores = new float[nVars];
   float alpha = 0.5, beta = 0.5;
 
@@ -81,9 +103,12 @@ int main() {
   int *d_clauses;
   int *d_weights;
   int *d_model;
-  int *d_best_model;
   float *d_scores;
   int *d_sat;
+
+  size_t avail, tot;
+  cudaMemGetInfo(&avail, &tot);
+  std::cout << "Avail: " << avail << " Tot: " << tot << std::endl;
 
   cudaMalloc(&d_input_arr, input_vec.size() * sizeof(int));
   cudaMalloc(&d_clauses, clauses_vec.size() * sizeof(int));
@@ -104,13 +129,16 @@ int main() {
              cudaMemcpyHostToDevice);
   cudaMemcpy(d_scores, scores, nVars * sizeof(float), cudaMemcpyHostToDevice);
 
-  search_alg1<<<1 + nClauses / 200, 256>>>(
+  cudaStream_t s;
+  cudaStreamCreate(&s);
+  search_alg1<<<1 + nClauses / 200, 256, 0, s>>>(
       nVars, nClauses, hardWeight, d_input_arr, d_clauses, d_weights, d_model,
       d_best_model, d_scores, d_sat, alpha, beta);
 
-  cudaMemcpy(best_model, d_best_model, nVars * sizeof(int),
-             cudaMemcpyDeviceToHost);
-
+  cudaMemcpyAsync(best_model, d_best_model, nVars * sizeof(int),
+             cudaMemcpyDeviceToHost, s);
+  cudaStreamSynchronize(s);
+  cudaStreamDestroy(s);
   for (int i = 0; i < nVars; i++) {
     std::cout << (best_model[i] == 1 ? (i + 1) : -(i + 1)) << " ";
   }
