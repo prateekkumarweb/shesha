@@ -111,7 +111,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
   __syncthreads();
 
-  for (int iter = 0; iter < 1000; iter++) {
+  for (int iter = 0; iter < 10000; iter++) {
 
     if (var_index_is_valid) {
       f_d.var_scores[var_index] = 0.0;
