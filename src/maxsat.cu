@@ -32,6 +32,7 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
       ss >> f.nVars;
       ss >> f.nClauses;
       ss >> hardWt;
+      f.hard_weight = hardWt;
       first_line = false;
     } else {
 
@@ -53,12 +54,12 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
           f.soft_clauses_lits.push_back(lit);
           ss >> lit;
         }
-        f.soft_clauses.push_back(f.hard_clauses_lits.size());
+        f.soft_clauses.push_back(f.soft_clauses_lits.size());
       }
     }
   }
 
-  f.model.resize(f.nVars+1);
+  f.model = new int[f.nVars+1];
 
   return true;
 }
@@ -88,8 +89,8 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
   cudaMemcpy(f_d.hard_clauses, f.hard_clauses.data(), (f_d.nHardClauses+1) * sizeof(unsigned), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.soft_clauses, f.soft_clauses.data(), (f_d.nSoftClauses+1) * sizeof(unsigned), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.soft_weights, f.soft_weights.data(), f_d.nSoftClauses * sizeof(unsigned), cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.model, f.model.data(), (f_d.nVars+1) * sizeof(int), cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.best_model, f.model.data(), (f_d.nVars+1) * sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemcpy(f_d.model, f.model, (f_d.nVars+1) * sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemcpy(f_d.best_model, f.model, (f_d.nVars+1) * sizeof(int), cudaMemcpyHostToDevice);
   
 }
 
@@ -106,9 +107,13 @@ void free_formula_d(MaxSATFormula_d &f_d) {
   cudaFree(f_d.hard_weights);
 }
 
+void free_formula(MaxSATFormula &f) {
+  delete[] f.model;
+}
+
 void print_model(std::ostream &out, MaxSATFormula &f) {
   out << 'v';
-  for (unsigned i = 1; i <= f.nVars; ++i) {
+  for (int i = 1; i <= f.nVars; ++i) {
     out << ' ' << (f.model[i] == 1 ? i : -i); 
   }
   out << std::endl;

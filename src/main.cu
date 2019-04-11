@@ -57,7 +57,7 @@ void sigint_handler(int sig) {
     std::cout << "Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
-    cudaMemcpyAsync(f.model.data(), f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
+    cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
     print_model(std::cout, f);
@@ -67,7 +67,7 @@ void sigint_handler(int sig) {
 
 __global__ void start_kernel(curandState_t *state) {
   int idx = threadIdx.x+blockDim.x*blockIdx.x;
-  curand_init(1234, idx, 0, &state[idx]);
+  curand_init(9876543210l, idx, 0, &state[idx]);
 }
 
 int main(int argc, char **argv) {
@@ -119,15 +119,16 @@ int main(int argc, char **argv) {
   cudaStream_t s;
   cudaStreamCreate(&s);
 
-  search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, alpha, beta, sp, d_state);
+  search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, d_state);
 
-  cudaMemcpyAsync(f.model.data(), f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 
   print_model(std::cout, f);
 
   free_formula_d(f_d);
+  free_formula(f);
   cudaFree(d_state);
 
   return 0;
