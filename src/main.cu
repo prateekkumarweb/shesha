@@ -57,7 +57,7 @@ void sigint_handler(int sig) {
     std::cout << "Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
-    cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
+    cudaMemcpyAsync(f.model.data(), f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
     print_model(std::cout, f);
@@ -119,9 +119,9 @@ int main(int argc, char **argv) {
   cudaStream_t s;
   cudaStreamCreate(&s);
 
-  search_alg1<<<1 + nClauses / 200, 256, 0, s>>>(f_d, alpha, beta, sp, d_state);
+  search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, alpha, beta, sp, d_state);
 
-  cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(f.model.data(), f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 

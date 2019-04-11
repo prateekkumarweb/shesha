@@ -7,7 +7,7 @@
 #include "maxsat.h"
 #include "search_algs.h"
 
-__global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float sp, curandState_t *d_state) {
+__global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float sp, curandState_t *state) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
   __shared__ unsigned best_hard_sat;
@@ -19,7 +19,6 @@ __global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float 
 
   if (index == 0) {
     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
-    best_hard_score = best_soft_score = 0.0;
     hard_weight = 0;
   }
 
@@ -181,13 +180,13 @@ __global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float 
 
     if (first_thread) {
       unsigned max_v = 1;
-      for (unsigned v = 2; v <= fd.nVars; ++v) {
+      for (unsigned v = 2; v <= f_d.nVars; ++v) {
         if (f_d.var_scores[v] >= f_d.var_scores[max_v]) {
-          max_v = i;
+          max_v = v;
         }
       }
 
-      f_d.model[max_v] = 1 - model[max_v];
+      f_d.model[max_v] = 1 - f_d.model[max_v];
 
       if (f_d.var_scores[index] < best_score) {
         bool smooth;
@@ -250,8 +249,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float 
 
     if (first_thread) {
       float score = 0.0;
-      curr_hard_cost = 0;
-      curr_soft_cost = 0;
+      curr_hard_sat = 0;
+      curr_soft_sat = 0;
       for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
         curr_hard_sat += f_d.hard_scores[i];
         score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
@@ -263,7 +262,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float 
       }
       best_score = score;
 
-      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_curr_soft)) {
+      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
 
