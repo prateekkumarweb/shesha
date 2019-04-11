@@ -13,12 +13,18 @@
 const struct option long_options[] = {
   {"help", no_argument, 0, 'h'},
   {"alg", required_argument, 0, 'a'},
+  {"alpha", required_argument, 0, 0},
+  {"beta", required_argument, 0, 0},
+  {"sp", required_argument, 0, 0},
   {0, 0, 0, 0}
 };
 
 const std::string option_desc[] {
   "Display help",
-  "Algorithm 1/2"
+  "Algorithm 1/2",
+  "Alpha for Alg1",
+  "Beta for Alg1",
+  "smoothening probability",
   ""
 };
 
@@ -30,7 +36,7 @@ void display_help(std::string exec) {
   
   std::cout << "\nUsage:\n";
   std::cout << " " << exec
-            << "[Options]"
+            << " [Options]"
             << "\n\n";
 
   std::cout << "Options:\n";
@@ -73,7 +79,7 @@ __global__ void start_kernel(curandState_t *state) {
 int main(int argc, char **argv) {
 
   int opt_alg = 1;
-  float alpha = 0.9, beta = 0.1, sp = 0.4;
+  float alpha = 0.9, beta = 0.1, sp = 0.1;
   
   while (1) {
     int option_index = 0;
@@ -82,6 +88,24 @@ int main(int argc, char **argv) {
 
     switch (c) {
     case 0:
+      if (std::string(long_options[option_index].name) == "alpha") {
+        if (optarg) {
+          alpha = std::stof(optarg);
+          std::cout << "alpha=" << alpha << std::endl;
+        }
+      } else if (std::string(long_options[option_index].name) == "beta") {
+        if (optarg) {
+          beta = std::stof(optarg);
+          std::cout << "beta=" << beta << std::endl;
+        }
+      } else if (std::string(long_options[option_index].name) == "sp") {
+        if (optarg) {
+          sp = std::stof(optarg);
+          std::cout << "sp=" << sp << std::endl;
+        }
+      } else {
+        display_error("Unrecognised argument: " + std::string(long_options[option_index].name));
+      }
       break;
 
     case 'h':

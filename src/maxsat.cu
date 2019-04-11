@@ -11,6 +11,8 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
   f.soft_clauses.push_back(0);
   f.hard_clauses.push_back(0);
 
+  f.sum_soft_weights = 0;
+
   while (std::getline(in, line)) {
     if (line == "") continue;
     if (line[0] == 'c') continue;
@@ -49,6 +51,7 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
         f.hard_clauses.push_back(f.hard_clauses_lits.size());
       } else {
         f.soft_weights.push_back(tmpWt);
+        f.sum_soft_weights += tmpWt;
         ss >> lit;
         while (lit != 0) {
           f.soft_clauses_lits.push_back(lit);
@@ -71,6 +74,7 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
   f_d.nSoftLits = f.soft_clauses_lits.size();
   f_d.nHardClauses = f.hard_clauses.size() - 1;
   f_d.nSoftClauses = f.soft_clauses.size() - 1;
+  f_d.sum_soft_weights = f.sum_soft_weights;
 
   cudaMalloc(&f_d.hard_clauses_lits, f_d.nHardLits * sizeof(int));
   cudaMalloc(&f_d.soft_clauses_lits, f_d.nSoftLits * sizeof(int));
