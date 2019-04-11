@@ -75,7 +75,7 @@ bool parse_input(int &nVars, int &nClauses, int &hardWeight,
   return true;
 }
 
-int main() {
+int main(int argc, char **argv) {
   signal(SIGINT, sigint_handler);
   int nClauses, hardWeight;
   std::vector<int> input_vec, clauses_vec, weights_vec;
