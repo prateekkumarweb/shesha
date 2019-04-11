@@ -7,6 +7,7 @@ struct MaxSATFormula {
   unsigned nVars;
   unsigned nClauses;
   unsigned hard_weight;
+  unsigned sum_soft_weights;
 
   std::vector<int> soft_clauses_lits;
   std::vector<unsigned> soft_clauses;
@@ -24,6 +25,7 @@ struct MaxSATFormula_d {
   unsigned nSoftLits;
   unsigned nHardClauses;
   unsigned nSoftClauses;
+  unsigned sum_soft_weights;
 
   int* soft_clauses_lits;
   unsigned* soft_clauses;
