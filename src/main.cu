@@ -161,11 +161,11 @@ int main(int argc, char **argv) {
   cudaStream_t s;
   cudaStreamCreate(&s);
 
-  start_kernel<<<1 + f.nClauses / 200, 256, 0, s>>>(d_state);
+  start_kernel<<<1, f.nClauses+f.nVars, 0, s>>>(d_state);
   if (opt_alg == 1)
-    search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, opt_iters, d_state);
+    search_alg1<<<1, f.nClauses+f.nVars, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, opt_iters, d_state);
   else if (opt_alg == 2)
-    search_alg2<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, hard_prob, sp, opt_iters, d_state);
+    search_alg2<<<1, f.nClauses+f.nVars, 0, s>>>(f_d, f.hard_weight, hard_prob, sp, opt_iters, d_state);
 
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
