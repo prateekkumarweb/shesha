@@ -63,7 +63,12 @@ MaxSATFormula f;
 MaxSATFormula_d f_d;
 
 void sigint_handler(int sig) {
-  if (sig == SIGINT) {
+  static int call = 0;
+  if (call > 0) {
+    exit(0);
+  }
+  if (sig == SIGINT || sig == SIGTERM) {
+    call++;
     std::cout << "c Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
