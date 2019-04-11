@@ -7,7 +7,7 @@
 #include "maxsat.h"
 #include "search_algs.h"
 
-__device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state, bool update_best = true) {
+__device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state, bool update_best) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
   int var_index = index;
   bool var_index_is_valid = (var_index >= 1 && var_index <= f_d.nVars);
