@@ -143,6 +143,7 @@ int main(int argc, char **argv) {
   std::cout << "c algorithm " << opt_alg << std::endl;
 
   signal(SIGINT, sigint_handler);
+  signal(SIGTERM, sigint_handler);
 
   if (!parse_formula(std::cin, f)) {
     display_error("Invalid input!");
