@@ -2,7 +2,7 @@
 #include <sstream>
 #include <string>
 
-#include "../include/maxsat.h"
+#include "maxsat.h"
 
 bool parse_formula(std::istream &in, MaxSATFormula &f) {
   std::string line;
@@ -58,7 +58,7 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
     }
   }
 
-  f.model.resize(nVars+1);
+  f.model.resize(f.nVars+1);
 
   return true;
 }
@@ -78,8 +78,10 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
   cudaMalloc(&f_d.soft_weights, f_d.nSoftClauses * sizeof(unsigned));
   cudaMalloc(&f_d.model, (f_d.nVars+1) * sizeof(int));
   cudaMalloc(&f_d.best_model, (f_d.nVars+1) * sizeof(int));
-  cudaMalloc(&f_d.hard_scores, f_d.nHardClauses * sizeof(float));
-  cudaMalloc(&f_d.soft_scores, f_d.nSoftClauses * sizeof(float));  
+  cudaMalloc(&f_d.hard_scores, f_d.nHardClauses * sizeof(int));
+  cudaMalloc(&f_d.soft_scores, f_d.nSoftClauses * sizeof(int));
+  cudaMalloc(&f_d.hard_weights, f_d.nHardClauses * sizeof(unsigned));
+  cudaMalloc(&f_d.var_scores, (f_d.nVars+1) * sizeof(float));
 
   cudaMemcpy(f_d.hard_clauses_lits, f.hard_clauses_lits.data(), f_d.nHardLits * sizeof(int), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.soft_clauses_lits, f.soft_clauses_lits.data(), f_d.nSoftLits * sizeof(int), cudaMemcpyHostToDevice);
@@ -101,6 +103,7 @@ void free_formula_d(MaxSATFormula_d &f_d) {
   cudaFree(f_d.best_model);
   cudaFree(f_d.hard_scores);
   cudaFree(f_d.soft_scores);
+  cudaFree(f_d.hard_weights);
 }
 
 void print_model(std::ostream &out, MaxSATFormula &f) {

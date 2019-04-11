@@ -3,169 +3,276 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <curand.h>
+#include "maxsat.h"
 #include "search_algs.h"
 
-__global__ void search_alg1(int nVars, int nClauses, int hardWeight,
-                           int *input_arr, int *clauses, int *weights,
-                           int *model, int *best_model, float *scores,
-                           int *d_sat, float alpha, float beta) {
+__global__ void search_alg1(MaxSATFormula_d f_d, float alpha, float beta, float sp, curandState_t *d_state) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
-  __shared__ int best_cost;
-  __shared__ int current_cost;
-  __shared__ int hard_sat;
-  __shared__ int best_hard_sat;
-  __shared__ int total_cost;
+  __shared__ unsigned best_hard_sat;
+  __shared__ unsigned curr_hard_sat;
+  __shared__ unsigned best_soft_sat;
+  __shared__ unsigned curr_soft_sat;
+  __shared__ float best_score;
+  __shared__ unsigned hard_weight;
 
   if (index == 0) {
-    total_cost = best_cost = current_cost = hard_sat = best_hard_sat = 0;
+    best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
+    best_hard_score = best_soft_score = 0.0;
+    hard_weight = 0;
   }
+
   __syncthreads();
 
-  if (index < nClauses) {
-    bool s = false;
-    for (int i = clauses[index]; i < clauses[index + 1]; i++) {
-      int lit = input_arr[i];
+  int var_index = index;
+  int hard_index = index;
+  int soft_index = index - f_d.nHardClauses;
+
+  bool var_index_is_valid = (var_index >= 1 && var_index <= f_d.nVars);
+  bool hard_index_is_valid = (hard_index >= 0 && hard_index < f_d.nHardClauses);
+  bool soft_index_is_valid = (soft_index >= 0 && soft_index < f_d.nSoftClauses);
+  bool first_thread = (index == 0);
+
+  if (var_index_is_valid) {
+    float randf = curand_uniform(&state[index]);
+    if (randf <= 0.5) f_d.model[var_index] = 1;
+    else f_d.model[var_index] = 0;
+    f_d.best_model[var_index] = f_d.model[var_index];
+  }
+
+  __syncthreads();
+
+  if (hard_index_is_valid) {
+    f_d.hard_weights[hard_index] = 1;
+    int sat = 0;    
+    for (unsigned i = f_d.hard_clauses[hard_index]; i < f_d.hard_clauses[hard_index+1]; ++i) {
+      int lit = f_d.hard_clauses_lits[i];
       if (lit > 0) {
-        if (model[lit - 1] == 1) {
-          s = true;
+        if (f_d.model[lit] == 1) {
+          sat = 1;
+          break;
         }
       } else {
-        if (model[-lit - 1] == 0) {
-          s = true;
-        }
-      }
-      if (s)
-        break;
-    }
-    d_sat[index] = s;
-  }
-  __syncthreads();
-
-  if (index == 0) {
-    int c = 0;
-    for (int i = 0; i < nClauses; i++) {
-      if (d_sat[i]) {
-        if (weights[i] == hardWeight) {
-          hard_sat++;
-          best_hard_sat++;
-        } else {
-          c += weights[i];
-        }
-      }
-      if (weights[i] != hardWeight) {
-        total_cost += weights[i];
-      }
-    }
-    best_cost = current_cost = c;
-  }
-  __syncthreads();
-
-  for (int k = 0; k < 100000; k++) {
-    if (index < nVars) {
-      scores[index] = 0.0;
-    }
-
-    __syncthreads();
-
-    for (int v = 0; v < nVars; v++) {
-      if (index == 0) {
-        model[v] = 1 - model[v];
-      }
-      __syncthreads();
-
-      if (index < nClauses) {
-        bool s = false;
-        for (int i = clauses[index]; i < clauses[index + 1]; i++) {
-          if (input_arr[i] > 0) {
-            if (model[input_arr[i] - 1] == 1) {
-              s = true;
-            }
-          } else {
-            if (model[-input_arr[i] - 1] == 0) {
-              s = true;
-            }
-          }
-          if (s)
-            break;
-        }
-        d_sat[index] = s;
-      }
-      __syncthreads();
-
-      if (index == 0) {
-        float c = 0.0;
-        for (int j = 0; j < nClauses; j++) {
-          if (d_sat[j]) {
-            c += weights[j] * (weights[j] == hardWeight ? alpha : beta);
-          }
-        }
-        scores[v] = c;
-        model[v] = 1 - model[v];
-      }
-    }
-    __syncthreads();
-
-    if (index == 0) {
-      int max_i = 0;
-      for (int i = 1; i < nVars; i++) {
-        if (scores[i] >= scores[max_i]) {
-          max_i = i;
-        }
-      }
-
-      model[max_i] = 1 - model[max_i];
-    }
-
-    __syncthreads();
-    if (index < nClauses) {
-      bool s = false;
-      for (int i = clauses[index]; i < clauses[index + 1]; i++) {
-        if (input_arr[i] > 0) {
-          if (model[input_arr[i] - 1] == 1) {
-            s = true;
-          }
-        } else {
-          if (model[-input_arr[i] - 1] == 0) {
-            s = true;
-          }
-        }
-        if (s)
+        if (f_d.model[-lit] == 0) {
+          sat = 1;
           break;
+        }
       }
-      d_sat[index] = s;
     }
+    f_d.hard_scores[hard_index] = sat;
+  }
+
+  if (soft_index_is_valid) {
+    int sat = 0;    
+    for (unsigned i = f_d.soft_clauses[soft_index]; i < f_d.soft_clauses[soft_index+1]; ++i) {
+      int lit = f_d.soft_clauses_lits[i];
+      if (lit > 0) {
+        if (f_d.model[lit] == 1) {
+          sat = 1;
+          break;
+        }
+      } else {
+        if (f_d.model[-lit] == 0) {
+          sat = 1;
+          break;
+        }
+      }
+    }
+    f_d.soft_scores[soft_index] = sat;
+  }
+
+  __syncthreads();
+
+  if (first_thread) {
+    best_score = 0.0;
+    for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
+      curr_hard_sat += f_d.hard_scores[i];
+      best_score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
+    }
+    best_score *= hard_weight;
+    for (unsigned i = 0; i<f_d.nSoftClauses; ++i) {
+      curr_soft_sat += f_d.soft_scores[i] * f_d.soft_weights[i];
+      best_score += beta * f_d.soft_scores[i] * f_d.soft_weights[i];
+    }
+
+    best_hard_sat = curr_hard_sat;
+    best_soft_sat = curr_soft_sat;
+  }
+
+  __syncthreads();
+
+  for (int iter = 0; iter < 1000; iter++) {
+
+    if (var_index_is_valid) {
+      f_d.var_scores[var_index] = 0.0;
+    }
+
     __syncthreads();
 
-    if (index == 0) {
-      hard_sat = 0;
-      current_cost = 0;
-      int c = 0;
-      for (int i = 0; i < nClauses; i++) {
-        if (d_sat[i]) {
-          if (weights[i] == hardWeight) {
-            hard_sat++;
+    for (int v = 1; v <= f_d.nVars; ++v) {
+      if (first_thread) {
+        f_d.model[v] = 1 - f_d.model[v];
+      }
+
+      __syncthreads();
+
+      if (hard_index_is_valid) {
+        int s = 0;
+        for (unsigned i = f_d.hard_clauses[hard_index]; i < f_d.hard_clauses[hard_index+1]; ++i) {
+          int lit = f_d.hard_clauses_lits[i];
+          if (lit > 0) {
+            if (f_d.model[lit] == 1) {
+              s = 1;
+              break;
+            }
           } else {
-            c += weights[i];
+            if (f_d.model[-lit] == 0) {
+              s = 1;
+              break;
+            }
+          }
+        }
+        f_d.hard_scores[hard_index] = s;
+      }
+
+      if (soft_index_is_valid) {
+        int s = 0;
+        for (unsigned i = f_d.soft_clauses[soft_index]; i < f_d.soft_clauses[soft_index+1]; ++i) {
+          int lit = f_d.soft_clauses_lits[i];
+          if (lit > 0) {
+            if (f_d.model[lit] == 1) {
+              s = 1;
+              break;
+            }
+          } else {
+            if (f_d.model[-lit] == 0) {
+              s = 1;
+              break;
+            }
+          }
+        }
+        f_d.soft_scores[soft_index] = s;
+      }
+
+      __syncthreads();
+
+      if (first_thread) {
+        float score = 0.0;
+        for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
+          curr_hard_sat += f_d.hard_scores[i];
+          score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
+        }
+        score *= hard_weight;
+        for (unsigned i = 0; i<f_d.nSoftClauses; ++i) {
+          curr_soft_sat += f_d.soft_scores[i] * f_d.soft_weights[i];
+          score += beta * f_d.soft_scores[i] * f_d.soft_weights[i];
+        }
+
+        f_d.var_scores[v] = score;
+        f_d.model[v] = 1 - f_d.model[v];
+      }
+
+      __syncthreads();
+
+    }
+
+    __syncthreads();
+
+    if (first_thread) {
+      unsigned max_v = 1;
+      for (unsigned v = 2; v <= fd.nVars; ++v) {
+        if (f_d.var_scores[v] >= f_d.var_scores[max_v]) {
+          max_v = i;
+        }
+      }
+
+      f_d.model[max_v] = 1 - model[max_v];
+
+      if (f_d.var_scores[index] < best_score) {
+        bool smooth;
+        float randf = curand_uniform(&state[index]);
+        smooth = (randf <= sp);
+
+        for (unsigned i = 0; i < f_d.nHardClauses; i++) {
+          if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
+            f_d.hard_weights[i]--;
+          }
+          if (!smooth && f_d.hard_scores[i] == 0) {
+            f_d.hard_weights[i]++;
           }
         }
       }
-      current_cost = c;
+    }
 
-      if (hard_sat > best_hard_sat ||
-          (hard_sat == best_hard_sat && current_cost > best_cost)) {
-        best_cost = current_cost;
-        best_hard_sat = hard_sat;
+    __syncthreads();
 
-        for (int i = 0; i < nVars; i++) {
-          best_model[i] = model[i];
+    if (hard_index_is_valid) {
+      f_d.hard_weights[hard_index] = 1;
+      int sat = 0;    
+      for (unsigned i = f_d.hard_clauses[hard_index]; i < f_d.hard_clauses[hard_index+1]; ++i) {
+        int lit = f_d.hard_clauses_lits[i];
+        if (lit > 0) {
+          if (f_d.model[lit] == 1) {
+            sat = 1;
+            break;
+          }
+        } else {
+          if (f_d.model[-lit] == 0) {
+            sat = 1;
+            break;
+          }
+        }
+      }
+      f_d.hard_scores[hard_index] = sat;
+    }
+
+    if (soft_index_is_valid) {
+      int sat = 0;    
+      for (unsigned i = f_d.soft_clauses[soft_index]; i < f_d.soft_clauses[soft_index+1]; ++i) {
+        int lit = f_d.soft_clauses_lits[i];
+        if (lit > 0) {
+          if (f_d.model[lit] == 1) {
+            sat = 1;
+            break;
+          }
+        } else {
+          if (f_d.model[-lit] == 0) {
+            sat = 1;
+            break;
+          }
+        }
+      }
+      f_d.soft_scores[soft_index] = sat;
+    }
+    
+    __syncthreads();
+
+    if (first_thread) {
+      float score = 0.0;
+      curr_hard_cost = 0;
+      curr_soft_cost = 0;
+      for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
+        curr_hard_sat += f_d.hard_scores[i];
+        score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
+      }
+      score *= hard_weight;
+      for (unsigned i = 0; i<f_d.nSoftClauses; ++i) {
+        curr_soft_sat += f_d.soft_scores[i] * f_d.soft_weights[i];
+        score += beta * f_d.soft_scores[i] * f_d.soft_weights[i];
+      }
+      best_score = score;
+
+      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_curr_soft)) {
+        best_hard_sat = curr_hard_sat;
+        best_soft_sat = curr_soft_sat;
+
+        for (unsigned i = 1; i <= f_d.nVars; ++i) {
+          f_d.best_model[i] = f_d.model[i];
         }
       }
     }
+
     __syncthreads();
   }
-
-  if (index == 0)
-    printf("Total cost: %d\nBest Cost: %d\nHard Sat: %d\n", total_cost,
-           best_cost, best_hard_sat);
 }

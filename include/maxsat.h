@@ -31,8 +31,10 @@ struct MaxSATFormula_d {
 
   int* model;
   int* best_model;
-  float* soft_scores;
-  float* hard_scores;
+  int* soft_scores;
+  int* hard_scores;
+  unsigned *hard_weights;
+  float* var_scores;
 };
 
 bool parse_formula(std::istream &in, MaxSATFormula &f);

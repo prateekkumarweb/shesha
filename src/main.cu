@@ -2,158 +2,133 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iomanip>
 #include <signal.h>
+#include <getopt.h>
+#include <curand.h>
+
+#include "maxsat.h"
 #include "search_algs.h"
 
-int nVars;
-int *d_best_model;
-int *best_model;
+const struct option long_options[] = {
+  {"help", no_argument, 0, 'h'},
+  {"alg", required_argument, 0, 'a'},
+  {0, 0, 0, 0}
+};
+
+const std::string option_desc[] {
+  "Display help",
+  "Algorithm 1/2"
+  ""
+};
+
+void display_help(std::string exec) {
+  std::cout << "Toolname version 0.1" << std::endl;
+  std::cout << "\n"
+            << "Description ..."
+            << std::endl;
+  
+  std::cout << "\nUsage:\n";
+  std::cout << " " << exec
+            << "[Options]"
+            << "\n\n";
+
+  std::cout << "Options:\n";
+  for (int i = 0; long_options[i].name != 0; i++) {
+    if (long_options[i].val)
+      std::cout << '-' << char(long_options[i].val) << ", ";
+    std::cout << std::left << "--" << std::setw(8) << long_options[i].name
+              << "\t" << option_desc[i] << "\n";
+  }
+}
+
+void display_error(std::string err) {
+  std::cout << err << std::endl;
+  std::cout << "Use --help option to know about supported options."
+            << std::endl;
+  exit(1);
+}
+
+MaxSATFormula f;
+MaxSATFormula_d f_d;
 
 void sigint_handler(int sig) {
   if (sig == SIGINT) {
     std::cout << "Exiting ..." << std::endl;
-    //exit(1);
     cudaStream_t s;
     cudaStreamCreate(&s);
-    cudaMemcpyAsync(best_model, d_best_model, nVars * sizeof(int),
-             cudaMemcpyDeviceToHost, s);
+    cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
-    for (int i = 0; i < nVars; i++) {
-      std::cout << (best_model[i] == 1 ? (i + 1) : -(i + 1)) << " ";
-    }
-    std::cout << std::endl;
+
+    print_model(std::cout, f);
     exit(1);
   }
 }
 
-bool parse_input(int &nVars, int &nClauses, int &hardWeight,
-                 std::vector<int> &input_vec, std::vector<int> &clauses,
-                 std::vector<int> &weights) {
-
-  std::string line;
-  bool first_line = true;
-
-  clauses.push_back(0);
-  while (std::getline(std::cin, line)) {
-    if (line == "")
-      break;
-
-    if (line.length() == 0)
-      continue;
-    if (line[0] == 'c')
-      continue;
-
-    std::stringstream ss(line);
-
-    if (first_line) {
-      std::string s;
-      ss >> s;
-      if (s != "p") {
-        return false;
-      }
-      ss >> s;
-      if (s != "wcnf") {
-        return false;
-      }
-      ss >> nVars;
-      ss >> nClauses;
-      ss >> hardWeight;
-
-      first_line = false;
-    } else {
-      int lit;
-      ss >> lit;
-      weights.push_back(lit);
-      ss >> lit;
-      while (lit != 0) {
-        input_vec.push_back(lit);
-        ss >> lit;
-      }
-      clauses.push_back(input_vec.size());
-    }
-  }
-  return true;
+__global__ void start_kernel(curandState_t *state) {
+  int idx = threadIdx.x+blockDim.x*blockIdx.x;
+  curand_init(1234, idx, 0, &state[idx]);
 }
 
 int main(int argc, char **argv) {
+
+  int opt_alg = 1;
+  float alpha = 0.9, beta = 0.1, sp = 0.4;
+  
+  while (1) {
+    int option_index = 0;
+    int c = getopt_long(argc, argv, "ha:", long_options, &option_index);
+    if (c == -1) break;
+
+    switch (c) {
+    case 0:
+      break;
+
+    case 'h':
+      display_help(std::string(argv[0]));
+      exit(0);
+
+    case 'a':
+      opt_alg = std::stoi(optarg);
+      break;
+    
+    default:
+      display_error("Unrecognised argument: " + std::to_string(c));
+    }
+  }
+
+  if (optind < argc) {
+    display_error("Unrecognised argument: " + std::string(argv[optind]));
+  }
+
   signal(SIGINT, sigint_handler);
-  int nClauses, hardWeight;
-  std::vector<int> input_vec, clauses_vec, weights_vec;
 
-  if (!parse_input(nVars, nClauses, hardWeight, input_vec, clauses_vec,
-                   weights_vec)) {
-    std::cout << "Input error!" << std::endl;
-    return -1;
+  if (!parse_formula(std::cin, f)) {
+    display_error("Invalid input!");
   }
-
-  int *input_arr = input_vec.data();
-  int *clauses = clauses_vec.data();
-  int *weights = weights_vec.data();
-  int *model = new int[nVars];
-  best_model = new int[nVars];
-  float *scores = new float[nVars];
-  float alpha = 0.5, beta = 0.5;
-
-  for (int i = 0; i < nVars; i++) {
-    model[i] = best_model[i] = 1;
-    scores[i] = 0.0;
-  }
-
-  int *d_input_arr;
-  int *d_clauses;
-  int *d_weights;
-  int *d_model;
-  float *d_scores;
-  int *d_sat;
 
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
   std::cout << "Avail: " << avail << " Tot: " << tot << std::endl;
 
-  cudaMalloc(&d_input_arr, input_vec.size() * sizeof(int));
-  cudaMalloc(&d_clauses, clauses_vec.size() * sizeof(int));
-  cudaMalloc(&d_weights, weights_vec.size() * sizeof(int));
-  cudaMalloc(&d_model, nVars * sizeof(int));
-  cudaMalloc(&d_best_model, nVars * sizeof(int));
-  cudaMalloc(&d_scores, nVars * sizeof(float));
-  cudaMalloc(&d_sat, nClauses * sizeof(int));
+  alloc_formuala_d(f, f_d);
 
-  cudaMemcpy(d_input_arr, input_arr, input_vec.size() * sizeof(int),
-             cudaMemcpyHostToDevice);
-  cudaMemcpy(d_clauses, clauses, clauses_vec.size() * sizeof(int),
-             cudaMemcpyHostToDevice);
-  cudaMemcpy(d_weights, weights, weights_vec.size() * sizeof(int),
-             cudaMemcpyHostToDevice);
-  cudaMemcpy(d_model, model, nVars * sizeof(int), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_best_model, best_model, nVars * sizeof(int),
-             cudaMemcpyHostToDevice);
-  cudaMemcpy(d_scores, scores, nVars * sizeof(float), cudaMemcpyHostToDevice);
+  curandState_t *d_state;
+  cudaMalloc(&d_state, sizeof(curandState_t));
 
   cudaStream_t s;
   cudaStreamCreate(&s);
-  search_alg1<<<1 + nClauses / 200, 256, 0, s>>>(
-      nVars, nClauses, hardWeight, d_input_arr, d_clauses, d_weights, d_model,
-      d_best_model, d_scores, d_sat, alpha, beta);
 
-  cudaMemcpyAsync(best_model, d_best_model, nVars * sizeof(int),
-             cudaMemcpyDeviceToHost, s);
+  search_alg1<<<1 + nClauses / 200, 256, 0, s>>>(f_d, alpha, beta, sp, d_state);
+
+  cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
-  for (int i = 0; i < nVars; i++) {
-    std::cout << (best_model[i] == 1 ? (i + 1) : -(i + 1)) << " ";
-  }
-  std::cout << std::endl;
 
-  delete[] model;
-  delete[] best_model;
-  delete[] scores;
-  cudaFree(d_input_arr);
-  cudaFree(d_clauses);
-  cudaFree(d_weights);
-  cudaFree(d_model);
-  cudaFree(d_best_model);
-  cudaFree(d_scores);
-  cudaFree(d_sat);
+  print_model(std::cout, f);
+
+  free_formula_d(f_d);
+  cudaFree(d_state);
 
   return 0;
 }
