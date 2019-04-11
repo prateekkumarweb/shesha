@@ -140,6 +140,7 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "c no. of iterations " << opt_iters << std::endl;
+  std::cout << "c algorithm " << opt_alg << std::endl;
 
   signal(SIGINT, sigint_handler);
 
@@ -163,7 +164,7 @@ int main(int argc, char **argv) {
   if (opt_alg == 1)
     search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, opt_iters, d_state);
   else if (opt_alg == 2)
-    search_alg2<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, hard_prob, sp, d_state);
+    search_alg2<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, hard_prob, sp, opt_iters, d_state);
 
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
