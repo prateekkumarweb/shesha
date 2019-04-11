@@ -16,6 +16,7 @@ const struct option long_options[] = {
   {"alpha", required_argument, 0, 0},
   {"beta", required_argument, 0, 0},
   {"sp", required_argument, 0, 0},
+  {"hard_prob", required_argument, 0, 0},
   {"iters", required_argument, 0, 'n'},
   {0, 0, 0, 0}
 };
@@ -26,6 +27,7 @@ const std::string option_desc[] {
   "Alpha for Alg1",
   "Beta for Alg1",
   "smoothening probability",
+  "probability of choosing hard clause for score in Alg2",
   "Number of iterations",
   ""
 };
@@ -81,7 +83,7 @@ __global__ void start_kernel(curandState_t *state) {
 int main(int argc, char **argv) {
 
   int opt_alg = 1, opt_iters = 1000;
-  float alpha = 0.9, beta = 0.1, sp = 0.1;
+  float alpha = 0.9, beta = 0.1, sp = 0.1, hard_prob = 0.5;
   
   while (1) {
     int option_index = 0;
@@ -102,7 +104,11 @@ int main(int argc, char **argv) {
         if (optarg) {
           sp = std::stof(optarg);
         }
-      } else {
+      } else if (std::string(long_options[option_index].name) == "hard_prob") {
+        if (optarg) {
+          hard_prob = std::stof(optarg);
+        }
+      }  else {
         display_error("Unrecognised argument: " + std::string(long_options[option_index].name));
       }
       break;
@@ -149,7 +155,11 @@ int main(int argc, char **argv) {
   cudaStreamCreate(&s);
 
   start_kernel<<<1 + f.nClauses / 200, 256, 0, s>>>(d_state);
-  search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, opt_iters, d_state);
+  if (opt_alg == 1)
+    search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, opt_iters, d_state);
+  else if (opt_alg == 2)
+    search_alg2<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, hard_prob, sp, d_state);
+
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
