@@ -73,7 +73,7 @@ __global__ void start_kernel(curandState_t *state) {
 int main(int argc, char **argv) {
 
   int opt_alg = 1;
-  float alpha = 0.9, beta = 0.1, sp = 0.4;
+  float alpha = 0.9, beta = 0.1, sp = 0.1;
   
   while (1) {
     int option_index = 0;

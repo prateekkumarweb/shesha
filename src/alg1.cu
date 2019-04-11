@@ -83,6 +83,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
   if (first_thread) {
     best_score = 0.0;
+    curr_hard_sat = 0;
+    curr_soft_sat = 0;
     for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
       curr_hard_sat += f_d.hard_scores[i];
       best_score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
@@ -166,6 +168,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
       if (first_thread) {
         float score = 0.0;
+        curr_hard_sat = 0;
+        curr_soft_sat = 0;
         for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
           curr_hard_sat += f_d.hard_scores[i];
           score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
@@ -269,7 +273,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
       }
       best_score = score;
 
-      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
+      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat >= best_soft_sat)) {
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
 
@@ -280,6 +284,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
     }
 
     __syncthreads();
+
+    // printf("%d %d %d %d\n", curr_hard_sat, best_hard_sat, curr_soft_sat, best_soft_sat);
 
   }
 
