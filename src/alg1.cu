@@ -7,7 +7,7 @@
 #include "maxsat.h"
 #include "search_algs.h"
 
-__global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alpha, float beta, float sp, curandState_t *state) {
+__global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alpha, float beta, float sp, int n_iters, curandState_t *state) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
   __shared__ unsigned best_hard_sat;
@@ -104,9 +104,9 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
   __shared__ int not_improved;
 
   if (first_thread) {
-    printf("R ");
+    printf("r");
     for (int i=1; i <= f_d.nVars; i++) {
-      printf(" %d", f_d.model[i]);
+      printf(" %d", f_d.model[i] > 0 ? i : -i);
     }
     printf("\n");
     not_improved = 0;
@@ -114,14 +114,14 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
   __syncthreads();
 
-  for (int iter = 0; iter < 5000; iter++) {
+  for (int iter = 0; iter < n_iters; iter++) {
 
     if (best_hard_sat == f_d.nHardClauses && best_soft_sat == f_d.sum_soft_weights) {
       break;
     }
 
     if (not_improved > 25) {
-      printf("Restarting ...\n");
+      // printf("Restarting ...\n");
       not_improved = 0;
       // iter = 0;
 
@@ -322,7 +322,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
     printf("c Best: %d %d\n", best_hard_sat, best_soft_sat);
     printf("b");
     for (int i=1; i <= f_d.nVars; i++) {
-      printf(" %d", f_d.model[i] > 0 ? i : -i);
+      printf(" %d", f_d.best_model[i] > 0 ? i : -i);
     }
     printf("\n");
   }
