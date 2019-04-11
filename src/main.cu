@@ -16,6 +16,7 @@ const struct option long_options[] = {
   {"alpha", required_argument, 0, 0},
   {"beta", required_argument, 0, 0},
   {"sp", required_argument, 0, 0},
+  {"iters", required_argument, 0, 'n'},
   {0, 0, 0, 0}
 };
 
@@ -25,6 +26,7 @@ const std::string option_desc[] {
   "Alpha for Alg1",
   "Beta for Alg1",
   "smoothening probability",
+  "Number of iterations",
   ""
 };
 
@@ -60,7 +62,7 @@ MaxSATFormula_d f_d;
 
 void sigint_handler(int sig) {
   if (sig == SIGINT) {
-    std::cout << "Exiting ..." << std::endl;
+    std::cout << "c Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
     cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
@@ -78,12 +80,12 @@ __global__ void start_kernel(curandState_t *state) {
 
 int main(int argc, char **argv) {
 
-  int opt_alg = 1;
+  int opt_alg = 1, opt_iters = 1000;
   float alpha = 0.9, beta = 0.1, sp = 0.1;
   
   while (1) {
     int option_index = 0;
-    int c = getopt_long(argc, argv, "ha:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "ha:n:", long_options, &option_index);
     if (c == -1) break;
 
     switch (c) {
@@ -91,17 +93,14 @@ int main(int argc, char **argv) {
       if (std::string(long_options[option_index].name) == "alpha") {
         if (optarg) {
           alpha = std::stof(optarg);
-          std::cout << "alpha=" << alpha << std::endl;
         }
       } else if (std::string(long_options[option_index].name) == "beta") {
         if (optarg) {
           beta = std::stof(optarg);
-          std::cout << "beta=" << beta << std::endl;
         }
       } else if (std::string(long_options[option_index].name) == "sp") {
         if (optarg) {
           sp = std::stof(optarg);
-          std::cout << "sp=" << sp << std::endl;
         }
       } else {
         display_error("Unrecognised argument: " + std::string(long_options[option_index].name));
@@ -115,6 +114,10 @@ int main(int argc, char **argv) {
     case 'a':
       opt_alg = std::stoi(optarg);
       break;
+
+    case 'n':
+      opt_iters = std::stoi(optarg);
+      break;
     
     default:
       display_error("Unrecognised argument: " + std::to_string(c));
@@ -125,6 +128,8 @@ int main(int argc, char **argv) {
     display_error("Unrecognised argument: " + std::string(argv[optind]));
   }
 
+  std::cout << "c no. of iterations " << opt_iters << std::endl;
+
   signal(SIGINT, sigint_handler);
 
   if (!parse_formula(std::cin, f)) {
@@ -133,7 +138,7 @@ int main(int argc, char **argv) {
 
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
-  std::cout << "Avail: " << avail << " Tot: " << tot << std::endl;
+  std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
 
   alloc_formuala_d(f, f_d);
 
@@ -144,7 +149,7 @@ int main(int argc, char **argv) {
   cudaStreamCreate(&s);
 
   start_kernel<<<1 + f.nClauses / 200, 256, 0, s>>>(d_state);
-  search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, d_state);
+  search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, opt_iters, d_state);
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
