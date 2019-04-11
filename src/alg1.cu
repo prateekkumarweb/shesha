@@ -17,7 +17,6 @@ __global__ void search_alg1(int nVars, int nClauses, int hardWeight,
   __shared__ int best_hard_sat;
   __shared__ int total_cost;
 
-  __syncthreads();
   if (index == 0) {
     total_cost = best_cost = current_cost = hard_sat = best_hard_sat = 0;
   }
@@ -62,16 +61,16 @@ __global__ void search_alg1(int nVars, int nClauses, int hardWeight,
   }
   __syncthreads();
 
-  for (int k = 0; k < 1000; k++) {
+  for (int k = 0; k < 100000; k++) {
     if (index < nVars) {
       scores[index] = 0.0;
     }
 
     __syncthreads();
 
-    for (int i = 0; i < nVars; i++) {
+    for (int v = 0; v < nVars; v++) {
       if (index == 0) {
-        model[i] = 1 - model[i];
+        model[v] = 1 - model[v];
       }
       __syncthreads();
 
@@ -101,12 +100,8 @@ __global__ void search_alg1(int nVars, int nClauses, int hardWeight,
             c += weights[j] * (weights[j] == hardWeight ? alpha : beta);
           }
         }
-        scores[i] = c;
-      }
-
-      __syncthreads();
-      if (index == 0) {
-        model[i] = 1 - model[i];
+        scores[v] = c;
+        model[v] = 1 - model[v];
       }
     }
     __syncthreads();
@@ -114,7 +109,7 @@ __global__ void search_alg1(int nVars, int nClauses, int hardWeight,
     if (index == 0) {
       int max_i = 0;
       for (int i = 1; i < nVars; i++) {
-        if (scores[i] > scores[max_i]) {
+        if (scores[i] >= scores[max_i]) {
           max_i = i;
         }
       }
@@ -156,10 +151,7 @@ __global__ void search_alg1(int nVars, int nClauses, int hardWeight,
         }
       }
       current_cost = c;
-    }
-    __syncthreads();
 
-    if (index == 0) {
       if (hard_sat > best_hard_sat ||
           (hard_sat == best_hard_sat && current_cost > best_cost)) {
         best_cost = current_cost;
