@@ -7,14 +7,15 @@
 #include "maxsat.h"
 #include "search_algs.h"
 
-__global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float prob, float sp, curandState_t *state) {
+__global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float hard_prob, float alpha, float beta, float sp, curandState_t *state) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
   __shared__ unsigned best_hard_sat;
   __shared__ unsigned curr_hard_sat;
   __shared__ unsigned best_soft_sat;
   __shared__ unsigned curr_soft_sat;
-  __shared__ float best_score;
+  __shared__ float best_hard_score;
+  __shared__ float best_soft_score;
 
   if (index == 0) {
     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
@@ -82,15 +83,15 @@ __global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float pro
   __syncthreads();
 
   if (first_thread) {
-    best_score = 0.0;
+    best_hard_score = 0.0;
+    best_soft_score = 0.0;
     for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
       curr_hard_sat += f_d.hard_scores[i];
-      best_score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
+      best_hard_score += alpha * f_d.hard_scores[i] * f_d.hard_weights[i];
     }
-    best_score *= hard_weight;
     for (unsigned i = 0; i<f_d.nSoftClauses; ++i) {
       curr_soft_sat += f_d.soft_scores[i] * f_d.soft_weights[i];
-      best_score += beta * f_d.soft_scores[i] * f_d.soft_weights[i];
+      best_soft_score += beta * f_d.soft_scores[i] * f_d.soft_weights[i];
     }
 
     best_hard_sat = curr_hard_sat;
@@ -115,6 +116,14 @@ __global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float pro
       f_d.var_scores[var_index] = 0.0;
     }
 
+    bool use_hard = false;
+
+    if (first_thread) {
+        float randf = curand_uniform(&state[index]);
+        if (randf <= hard_prob) use_hard = true;
+        else use_hard = false;
+        f_d.best_model[var_index] = f_d.model[var_index];
+    }
     __syncthreads();
 
     for (int v = 1; v <= f_d.nVars; ++v) {
@@ -297,4 +306,24 @@ __global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float pro
     printf("\n");
   }
   __syncthreads();
+}
+
+
+__device__ void compute_scores(MaxSATFormula_d &f_d, int clause_index) {
+  int s = 0;
+  for (unsigned i = f_d.hard_clauses[clause_index]; i < f_d.hard_clauses[clause_index+1]; ++i) {
+    int lit = f_d.hard_clauses_lits[i];
+    if (lit > 0) {
+      if (f_d.model[lit] == 1) {
+          s = 1;
+          break;
+      }
+    } else {
+      if (f_d.model[-lit] == 0) {
+          s = 1;
+          break;
+      }
+    }
+  }
+  f_d.hard_scores[clause_index] = s;
 }

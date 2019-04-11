@@ -5,6 +5,6 @@
 #include "maxsat.h"
 
 __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alpha, float beta, float sp, curandState_t *d_state);
-__global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float prob, float sp, curandState_t *d_state);
+__global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float hard_prob, float alpha, float beta, float sp, curandState_t *d_state);
 
 #endif // SEARCH_ALGS_H
