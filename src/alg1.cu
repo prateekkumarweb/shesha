@@ -24,7 +24,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
   int var_index = index;
   int hard_index = index;
-  int soft_index = index - f_d.nHardClauses;
+  int soft_index = index - int(f_d.nHardClauses);
 
   bool var_index_is_valid = (var_index >= 1 && var_index <= f_d.nVars);
   bool hard_index_is_valid = (hard_index >= 0 && hard_index < f_d.nHardClauses);
@@ -33,7 +33,6 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
   if (var_index_is_valid) {
     float randf = curand_uniform(&state[index]);
-    printf("%f\n", randf);
     if (randf <= 0.5) f_d.model[var_index] = 1;
     else f_d.model[var_index] = 0;
     f_d.best_model[var_index] = f_d.model[var_index];
@@ -110,7 +109,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
   __syncthreads();
 
-  for (int iter = 0; iter < 10; iter++) {
+  for (int iter = 0; iter < 1000; iter++) {
 
     if (var_index_is_valid) {
       f_d.var_scores[var_index] = 0.0;
@@ -197,10 +196,9 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
 
       f_d.model[max_v] = 1 - f_d.model[max_v];
 
-      if (f_d.var_scores[index] < best_score) {
+      if (f_d.var_scores[max_v] < best_score) {
         bool smooth;
         float randf = curand_uniform(&state[index]);
-        // printf("Smooth %f\n", randf);
         smooth = (randf <= sp);
 
         for (unsigned i = 0; i < f_d.nHardClauses; i++) {
@@ -275,7 +273,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
 
-        for (unsigned i = 0; i <= f_d.nVars; ++i) {
+        for (unsigned i = 1; i <= f_d.nVars; ++i) {
           f_d.best_model[i] = f_d.model[i];
         }
       }

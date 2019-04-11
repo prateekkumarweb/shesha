@@ -112,6 +112,45 @@ void free_formula(MaxSATFormula &f) {
 }
 
 void print_model(std::ostream &out, MaxSATFormula &f) {
+  unsigned ss = 0;
+  for (auto i : f.soft_weights) {
+    ss += i;
+  }
+  std::cout << "c Original Hard: " << f.hard_clauses.size()-1 << " Soft: " << ss << std::endl;
+  unsigned tot = ss;
+
+  ss = 0;
+  for (int i = 0; i<f.hard_clauses.size()-1; i++) {
+    int s = 0;
+    for (int j = f.hard_clauses[i]; j < f.hard_clauses[i+1]; j++) {
+      int l = f.hard_clauses_lits[j];
+      if (l > 0) {
+        if (f.model[l] == 1) s = 1;
+      } else {
+        if (f.model[-l] == 0) s = 1;
+      }
+      if (s) break;
+    }
+    ss += s;
+  }
+  std::cout << "c Hard: " << ss << " ";
+
+  ss = 0;
+  for (int i = 0; i<f.soft_clauses.size()-1; i++) {
+    int s = 0;
+    for (int j = f.soft_clauses[i]; j < f.soft_clauses[i+1]; j++) {
+      int l = f.soft_clauses_lits[j];
+      if (l > 0) {
+        if (f.model[l] == 1) s = 1;
+      } else {
+        if (f.model[-l] == 0) s = 1;
+      }
+      if (s) break;
+    }
+    ss += s*f.soft_weights[i];
+  }
+  std::cout << "Soft: " << ss << " Cost: " << tot - ss << std::endl;
+
   out << 'v';
   for (int i = 1; i <= f.nVars; ++i) {
     out << ' ' << (f.model[i] == 1 ? i : -i); 

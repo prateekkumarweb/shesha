@@ -114,11 +114,12 @@ int main(int argc, char **argv) {
   alloc_formuala_d(f, f_d);
 
   curandState_t *d_state;
-  cudaMalloc(&d_state, sizeof(curandState_t));
+  cudaMalloc(&d_state, (1+f.nClauses/200) * 256 * sizeof(curandState_t));
 
   cudaStream_t s;
   cudaStreamCreate(&s);
 
+  start_kernel<<<1 + f.nClauses / 200, 256, 0, s>>>(d_state);
   search_alg1<<<1 + f.nClauses / 200, 256, 0, s>>>(f_d, f.hard_weight, alpha, beta, sp, d_state);
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
