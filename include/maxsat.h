@@ -29,6 +29,7 @@ struct MaxSATFormula_d {
 
   int* soft_clauses_lits;
   unsigned* soft_clauses;
+  unsigned* soft_weights_orig;
   unsigned* soft_weights;
   int* hard_clauses_lits;
   unsigned* hard_clauses;

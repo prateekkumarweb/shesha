@@ -7,6 +7,4 @@
 __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alpha, float beta, float sp, int n_iters, curandState_t *d_state);
 __global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float hard_prob, float sp, int n_iters, curandState_t *d_state);
 
-__device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state, bool update_best = true);
-
 #endif // SEARCH_ALGS_H

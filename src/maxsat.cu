@@ -81,6 +81,7 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
   cudaMalloc(&f_d.hard_clauses, (f_d.nHardClauses+1) * sizeof(unsigned));
   cudaMalloc(&f_d.soft_clauses, (f_d.nSoftClauses+1) * sizeof(unsigned));
   cudaMalloc(&f_d.soft_weights, f_d.nSoftClauses * sizeof(unsigned));
+  cudaMalloc(&f_d.soft_weights_orig, f_d.nSoftClauses * sizeof(unsigned));
   cudaMalloc(&f_d.model, (f_d.nVars+1) * sizeof(int));
   cudaMalloc(&f_d.best_model, (f_d.nVars+1) * sizeof(int));
   cudaMalloc(&f_d.hard_scores, f_d.nHardClauses * sizeof(int));
@@ -93,6 +94,7 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
   cudaMemcpy(f_d.hard_clauses, f.hard_clauses.data(), (f_d.nHardClauses+1) * sizeof(unsigned), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.soft_clauses, f.soft_clauses.data(), (f_d.nSoftClauses+1) * sizeof(unsigned), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.soft_weights, f.soft_weights.data(), f_d.nSoftClauses * sizeof(unsigned), cudaMemcpyHostToDevice);
+  cudaMemcpy(f_d.soft_weights_orig, f.soft_weights.data(), f_d.nSoftClauses * sizeof(unsigned), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.model, f.model, (f_d.nVars+1) * sizeof(int), cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.best_model, f.model, (f_d.nVars+1) * sizeof(int), cudaMemcpyHostToDevice);
   
@@ -104,6 +106,7 @@ void free_formula_d(MaxSATFormula_d &f_d) {
   cudaFree(f_d.hard_clauses);
   cudaFree(f_d.soft_clauses);
   cudaFree(f_d.soft_weights);
+  cudaFree(f_d.soft_weights_orig);
   cudaFree(f_d.model);
   cudaFree(f_d.best_model);
   cudaFree(f_d.hard_scores);
