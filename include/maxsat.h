@@ -40,10 +40,12 @@ struct MaxSATFormula_d {
   int* hard_scores;
   unsigned *hard_weights;
   float* var_scores;
+
+  unsigned nThreads;
 };
 
 bool parse_formula(std::istream &in, MaxSATFormula &f);
-void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d);
+void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads);
 void free_formula(MaxSATFormula &f);
 void free_formula_d(MaxSATFormula_d &f_d);
 void print_model(std::ostream &out, MaxSATFormula &f);

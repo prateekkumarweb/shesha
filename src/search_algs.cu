@@ -13,10 +13,12 @@ __device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state, boo
   bool var_index_is_valid = (var_index >= 1 && var_index <= f_d.nVars);
 
   if (var_index_is_valid) {
-    float randf = curand_uniform(&state[index]);
-    if (randf <= 0.5) f_d.model[var_index] = 1;
-    else f_d.model[var_index] = 0;
-    if (update_best) f_d.best_model[var_index] = f_d.model[var_index];
+    for (; var_index <= f_d.nVars; var_index += f_d.nThreads) {
+      float randf = curand_uniform(&state[index]);
+      if (randf <= 0.5) f_d.model[var_index] = 1;
+      else f_d.model[var_index] = 0;
+      if (update_best) f_d.best_model[var_index] = f_d.model[var_index];
+    }
   }
 }
 
@@ -26,23 +28,25 @@ __device__ void update_hard_scores(MaxSATFormula_d &f_d) {
   bool hard_index_is_valid = (hard_index >= 0 && hard_index < f_d.nHardClauses);
 
   if (hard_index_is_valid) {
-    f_d.hard_weights[hard_index] = 1;
-    int sat = 0;    
-    for (unsigned i = f_d.hard_clauses[hard_index]; i < f_d.hard_clauses[hard_index+1]; ++i) {
-      int lit = f_d.hard_clauses_lits[i];
-      if (lit > 0) {
-        if (f_d.model[lit] == 1) {
-          sat = 1;
-          break;
-        }
-      } else {
-        if (f_d.model[-lit] == 0) {
-          sat = 1;
-          break;
+    for (; hard_index < f_d.nHardClauses; hard_index += f_d.nThreads) {
+      f_d.hard_weights[hard_index] = 1;
+      int sat = 0;    
+      for (unsigned i = f_d.hard_clauses[hard_index]; i < f_d.hard_clauses[hard_index+1]; ++i) {
+        int lit = f_d.hard_clauses_lits[i];
+        if (lit > 0) {
+          if (f_d.model[lit] == 1) {
+            sat = 1;
+            break;
+          }
+        } else {
+          if (f_d.model[-lit] == 0) {
+            sat = 1;
+            break;
+          }
         }
       }
-    }
-    f_d.hard_scores[hard_index] = sat;
+      f_d.hard_scores[hard_index] = sat;
+    } 
   }
 }
 
@@ -52,22 +56,24 @@ __device__ void update_soft_scores(MaxSATFormula_d &f_d) {
   bool soft_index_is_valid = (soft_index >= 0 && soft_index < f_d.nSoftClauses);
 
   if (soft_index_is_valid) {
-    int sat = 0;    
-    for (unsigned i = f_d.soft_clauses[soft_index]; i < f_d.soft_clauses[soft_index+1]; ++i) {
-      int lit = f_d.soft_clauses_lits[i];
-      if (lit > 0) {
-        if (f_d.model[lit] == 1) {
-          sat = 1;
-          break;
-        }
-      } else {
-        if (f_d.model[-lit] == 0) {
-          sat = 1;
-          break;
+    for (; soft_index < f_d.nSoftClauses; soft_index += f_d.nThreads) {
+      int sat = 0;
+      for (unsigned i = f_d.soft_clauses[soft_index]; i < f_d.soft_clauses[soft_index+1]; ++i) {
+        int lit = f_d.soft_clauses_lits[i];
+        if (lit > 0) {
+          if (f_d.model[lit] == 1) {
+            sat = 1;
+            break;
+          }
+        } else {
+          if (f_d.model[-lit] == 0) {
+            sat = 1;
+            break;
+          }
         }
       }
+      f_d.soft_scores[soft_index] = sat;
     }
-    f_d.soft_scores[soft_index] = sat;
   }
 }
 
@@ -77,7 +83,8 @@ __device__ void reset_var_scores(MaxSATFormula_d &f_d) {
   bool var_index_is_valid = (var_index >= 1 && var_index <= f_d.nVars);
 
   if (var_index_is_valid) {
-    f_d.var_scores[var_index] = 0.0;
+    for (; var_index <= f_d.nVars; var_index += f_d.nThreads)
+      f_d.var_scores[var_index] = 0.0;
   }
 }
 

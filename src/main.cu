@@ -149,11 +149,14 @@ int main(int argc, char **argv) {
     display_error("Invalid input!");
   }
 
+  int nBlocks = 1;
+  int nThreads = 1024;
+
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
   std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
 
-  alloc_formuala_d(f, f_d);
+  alloc_formuala_d(f, f_d, nThreads);
 
   curandState_t *d_state;
   cudaMalloc(&d_state, (1+f.nClauses/200) * 256 * sizeof(curandState_t));
@@ -161,11 +164,11 @@ int main(int argc, char **argv) {
   cudaStream_t s;
   cudaStreamCreate(&s);
 
-  start_kernel<<<1, 1024, 0, s>>>(d_state);
+  start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
   if (opt_alg == 1)
-    search_alg1<<<1, 1024, 0, s>>>(f_d, f.sum_soft_weights, alpha, beta, sp, opt_iters, d_state);
+    search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha, beta, sp, opt_iters, d_state);
   else if (opt_alg == 2)
-    search_alg2<<<1, 1024, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, d_state);
+    search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, d_state);
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
