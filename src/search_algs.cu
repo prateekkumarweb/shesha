@@ -268,13 +268,14 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
       score += beta * compute_total_soft_score(f_d, curr_soft_sat);
       best_score = score;
 
-      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat >= best_soft_sat)) {
+      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
 
         for (unsigned i = 1; i <= f_d.nVars; ++i) {
           f_d.best_model[i] = f_d.model[i];
         }
+        not_improved = 0;
       } else {
         not_improved++;
       }
@@ -443,13 +444,14 @@ __global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float har
       best_hard_score = compute_total_hard_score(f_d, curr_hard_sat);
       best_soft_score = compute_total_soft_score(f_d, curr_soft_sat);
 
-      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat >= best_soft_sat)) {
+      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
 
         for (unsigned i = 1; i <= f_d.nVars; ++i) {
           f_d.best_model[i] = f_d.model[i];
         }
+        not_improved = 0;
       } else {
         not_improved++;
       }
