@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <iomanip>
+#include <cassert>
 #include <signal.h>
 #include <getopt.h>
 #include <curand.h>
@@ -18,6 +19,9 @@ const struct option long_options[] = {
   {"sp", required_argument, 0, 0},
   {"hard_prob", required_argument, 0, 0},
   {"iters", required_argument, 0, 'n'},
+  {"restart_thresh", required_argument, 0, 0},
+  {"nblocks", required_argument, 0, 0},
+  {"nthreads", required_argument, 0, 0},
   {0, 0, 0, 0}
 };
 
@@ -29,6 +33,9 @@ const std::string option_desc[] {
   "smoothening probability",
   "probability of choosing hard clause for score in Alg2",
   "Number of iterations",
+  "Number of iterations without improvement between two restarts",
+  "Number of blocks to use",
+  "Number of threads per block to use",
   ""
 };
 
@@ -89,6 +96,9 @@ int main(int argc, char **argv) {
 
   int opt_alg = 1, opt_iters = 1000;
   float alpha = 0.9, beta = 0.1, sp = 0.1, hard_prob = 0.5;
+  int restart_thresh = 100;
+  int nBlocks = 1;
+  int nThreads = 1024;
   
   while (1) {
     int option_index = 0;
@@ -113,7 +123,19 @@ int main(int argc, char **argv) {
         if (optarg) {
           hard_prob = std::stof(optarg);
         }
-      }  else {
+      } else if (std::string(long_options[option_index].name) == "restart_thresh") {
+        if (optarg) {
+          restart_thresh = std::stoi(optarg);
+        }
+      } else if (std::string(long_options[option_index].name) == "nblocks") {
+        if (optarg) {
+          nBlocks = std::stoi(optarg);
+        }
+      } else if (std::string(long_options[option_index].name) == "nthreads") {
+        if (optarg) {
+          nThreads = std::stoi(optarg);
+        }
+      } else {
         display_error("Unrecognised argument: " + std::string(long_options[option_index].name));
       }
       break;
@@ -149,9 +171,6 @@ int main(int argc, char **argv) {
     display_error("Invalid input!");
   }
 
-  int nBlocks = 1;
-  int nThreads = 1024;
-
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
   std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
@@ -166,9 +185,9 @@ int main(int argc, char **argv) {
 
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
   if (opt_alg == 1)
-    search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha, beta, sp, opt_iters, d_state);
+    search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha, beta, sp, opt_iters, restart_thresh, d_state);
   else if (opt_alg == 2)
-    search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, d_state);
+    search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, restart_thresh, d_state);
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
