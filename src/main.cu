@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
   alloc_formuala_d(f, f_d, nThreads);
 
   curandState_t *d_state;
-  cudaMalloc(&d_state, (1+f.nClauses/200) * 256 * sizeof(curandState_t));
+  cudaMalloc(&d_state, nBlocks * nThreads * sizeof(curandState_t));
 
   cudaStream_t s;
   cudaStreamCreate(&s);
