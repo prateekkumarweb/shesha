@@ -201,8 +201,9 @@ int main(int argc, char **argv) {
   if (opt_alg == 1) {
     search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha, beta, sp, flip_hard_prob, opt_iters, restart_thresh, d_state);
     gpuErrchk( cudaPeekAtLastError() );
-  } else if (opt_alg == 2)
-    search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, restart_thresh, d_state);
+  } 
+  // else if (opt_alg == 2)
+    // search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, restart_thresh, d_state);
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);

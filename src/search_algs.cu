@@ -146,7 +146,7 @@ __device__ void compute_total_hard_score(MaxSATFormula_d &f_d, unsigned &curr_ha
   for (int i = index; i<f_d.nHardClauses; i+=f_d.nThreads) {
     score += f_d.hard_scores[i];
   }
-  __shared__ int r[blockDim.x];
+  __shared__ int r[1024];
   r[index] = score;
   __syncthreads();
   for (int size = blockDim.x/2; size > 0; size >>= 1) {
@@ -168,7 +168,7 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d, unsigned &curr_so
     for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
       score += f_d.soft_scores[i];
     }
-    __shared__ int r[blockDim.x];
+    __shared__ int r[1024];
     r[index] = score;
     __syncthreads();
     for (int size = blockDim.x/2; size > 0; size >>= 1) {
@@ -187,7 +187,7 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d, unsigned &curr_so
     for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
       score += f_d.soft_temp[i];
     }
-    __shared__ int r[blockDim.x];
+    __shared__ int r[1024];
     r[index] = score;
     __syncthreads();
     for (int size = blockDim.x/2; size > 0; size >>= 1) {
