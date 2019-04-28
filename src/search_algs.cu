@@ -63,11 +63,13 @@ __device__ void update_soft_scores(MaxSATFormula_d &f_d) {
         if (lit > 0) {
           if (f_d.model[lit] == 1) {
             sat = f_d.soft_weights_orig[soft_index];
+            f_d.soft_temp[soft_index] = f_d.soft_weights[soft_index];
             break;
           }
         } else {
           if (f_d.model[-lit] == 0) {
             sat = f_d.soft_weights_orig[soft_index];
+            f_d.soft_temp[soft_index] = f_d.soft_weights[soft_index];
             break;
           }
         }
@@ -138,22 +140,61 @@ __device__ void reset_var_scores(MaxSATFormula_d &f_d) {
   }
 }
 
-__device__ float compute_total_hard_score(MaxSATFormula_d &f_d, unsigned &curr_hard_sat) {
-  float score = 0.0;
-  for (unsigned i = 0; i<f_d.nHardClauses; ++i) {
-    curr_hard_sat += f_d.hard_scores[i];
+__device__ void compute_total_hard_score(MaxSATFormula_d &f_d, unsigned &curr_hard_sat, unsigned &hard_score) {
+  unsigned score = 0;
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  for (int i = index; i<f_d.nHardClauses; i+=f_d.nThreads) {
     score += f_d.hard_scores[i];
   }
-  return score;
+  __shared__ int r[blockDim.x];
+  r[index] = score;
+  __syncthreads();
+  for (int size = blockDim.x/2; size > 0; size >>= 1) {
+    if (index < size) {
+      r[index] += r[index+size];
+    }
+    __syncthreads();
+  }
+  if (index == 0) {
+    curr_hard_sat = hard_score = r[0];
+  }
 }
 
-__device__ float compute_total_soft_score(MaxSATFormula_d &f_d, unsigned &curr_soft_sat) {
-  float score = 0.0;
-  for (unsigned i = 0; i<f_d.nSoftClauses; ++i) {
-    curr_soft_sat += f_d.soft_scores[i];
+__device__ void compute_total_soft_score(MaxSATFormula_d &f_d, unsigned &curr_soft_sat, unsigned &soft_score) {
+  unsigned score = 0;
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
     score += f_d.soft_scores[i];
   }
-  return score;
+  __shared__ int r[blockDim.x];
+  r[index] = score;
+  __syncthreads();
+  for (int size = blockDim.x/2; size > 0; size >>= 1) {
+    if (index < size) {
+      r[index] += r[index+size];
+    }
+    __syncthreads();
+  }
+  if (index == 0) {
+    curr_hard_sat = r[0];
+  }
+
+  score = 0;
+  for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
+    score += f_d.soft_temp[i];
+  }
+  __shared__ int r[blockDim.x];
+  r[index] = score;
+  __syncthreads();
+  for (int size = blockDim.x/2; size > 0; size >>= 1) {
+    if (index < size) {
+      r[index] += r[index+size];
+    }
+    __syncthreads();
+  }
+  if (index == 0) {
+    soft_score = r[0];
+  }
 }
 
 __device__ void print_final(int index, MaxSATFormula_d &f_d, unsigned &curr_hard_sat, unsigned &curr_soft_sat, unsigned &best_hard_sat, unsigned &best_soft_sat) {
@@ -182,6 +223,9 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
   __shared__ unsigned curr_hard_sat;
   __shared__ unsigned best_soft_sat;
   __shared__ unsigned curr_soft_sat;
+
+  __shared__ unsigned total_hard_scores;
+  __shared__ unsigned total_soft_scores;
   __shared__ float prev_score;
   __shared__ int not_improved;
   unsigned max_v = 1;
@@ -205,8 +249,16 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
     prev_score = 0.0;
     curr_hard_sat = 0;
     curr_soft_sat = 0;
-    prev_score += alpha * compute_total_hard_score(f_d, curr_hard_sat) * hard_weight;
-    prev_score += beta * compute_total_soft_score(f_d, curr_soft_sat);
+  }
+
+  __syncthreads();
+
+  compute_total_hard_score(f_d, curr_hard_sat, total_hard_scores);
+  compute_total_soft_score(f_d, curr_soft_sat, total_soft_scores);
+
+  if (first_thread) {
+    prev_score += alpha * total_hard_scores * hard_weight;
+    prev_score += beta * total_soft_scores;
     best_hard_sat = curr_hard_sat;
     best_soft_sat = curr_soft_sat;
     // printf("r");
@@ -250,8 +302,16 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
         float score = 0.0;
         curr_hard_sat = 0;
         curr_soft_sat = 0;
-        score += alpha * compute_total_hard_score(f_d, curr_hard_sat) * hard_weight;
-        score += beta * compute_total_soft_score(f_d, curr_soft_sat);
+      }
+
+      __syncthreads();
+
+      compute_total_hard_score(f_d, curr_hard_sat, total_hard_scores);
+      compute_total_soft_score(f_d, curr_soft_sat, total_soft_scores);
+
+      if (first_thread) {
+        score += alpha * total_hard_scores * hard_weight;
+        score += beta * total_soft_scores;
 
         f_d.var_scores[v] = score;
         if (f_d.var_scores[v] >= f_d.var_scores[max_v]) {
@@ -319,8 +379,16 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
       float score = 0.0;
       curr_hard_sat = 0;
       curr_soft_sat = 0;
-      score += alpha * compute_total_hard_score(f_d, curr_hard_sat) * hard_weight;
-      score += beta * compute_total_soft_score(f_d, curr_soft_sat);
+    }
+
+    __syncthreads();
+
+    compute_total_hard_score(f_d, curr_hard_sat, total_hard_scores);
+    compute_total_soft_score(f_d, curr_soft_sat, total_soft_scores);
+
+    if (first_thread) {
+      score += alpha * total_hard_scores * hard_weight;
+      score += beta * total_soft_scores;
       prev_score = score;
 
       if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
@@ -341,173 +409,173 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
   print_final(index, f_d, curr_hard_sat, curr_soft_sat, best_hard_sat, best_soft_sat);
 }
 
-__global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float hard_prob, float sp, int n_iters, int restart_threshold, curandState_t *state) {
-  int index = threadIdx.x + blockDim.x * blockIdx.x;
+// __global__ void search_alg2(MaxSATFormula_d f_d, unsigned hard_weight, float hard_prob, float sp, int n_iters, int restart_threshold, curandState_t *state) {
+//   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
-  __shared__ unsigned best_hard_sat;
-  __shared__ unsigned curr_hard_sat;
-  __shared__ unsigned best_soft_sat;
-  __shared__ unsigned curr_soft_sat;
-  __shared__ float best_hard_score;
-  __shared__ float best_soft_score;
-  unsigned max_v = 1;
+//   __shared__ unsigned best_hard_sat;
+//   __shared__ unsigned curr_hard_sat;
+//   __shared__ unsigned best_soft_sat;
+//   __shared__ unsigned curr_soft_sat;
+//   __shared__ float best_hard_score;
+//   __shared__ float best_soft_score;
+//   unsigned max_v = 1;
 
-  if (index == 0) {
-    best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
-  }
+//   if (index == 0) {
+//     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
+//   }
 
-  __syncthreads();
+//   __syncthreads();
 
-  bool first_thread = (index == 0);
+//   bool first_thread = (index == 0);
 
-  get_random_model(f_d, state);
+//   get_random_model(f_d, state);
 
-  __syncthreads();
+//   __syncthreads();
 
-  update_hard_scores(f_d);
-  update_soft_scores(f_d);
+//   update_hard_scores(f_d);
+//   update_soft_scores(f_d);
 
-  __syncthreads();
+//   __syncthreads();
 
-  if (first_thread) {
-    best_hard_score = compute_total_hard_score(f_d, curr_hard_sat);
-    best_soft_score = compute_total_soft_score(f_d, curr_soft_sat);
+//   compute_total_hard_score(f_d, curr_hard_sat, best_hard_score);
+//   compute_total_soft_score(f_d, curr_soft_sat, best_soft_score);
 
-    best_hard_sat = curr_hard_sat;
-    best_soft_sat = curr_soft_sat;
-  }
+//   if (first_thread) {
+//     best_hard_sat = curr_hard_sat;
+//     best_soft_sat = curr_soft_sat;
+//   }
 
-  __syncthreads();
+//   __syncthreads();
 
-  __shared__ int not_improved;
+//   __shared__ int not_improved;
 
-  if (first_thread) {
-    // printf("r");
-    // for (int i=1; i <= f_d.nVars; i++) {
-    //   printf(" %d", f_d.model[i] > 0 ? i : -i);
-    // }
-    // printf("\n");
-    not_improved = 0;
-  }
+//   if (first_thread) {
+//     // printf("r");
+//     // for (int i=1; i <= f_d.nVars; i++) {
+//     //   printf(" %d", f_d.model[i] > 0 ? i : -i);
+//     // }
+//     // printf("\n");
+//     not_improved = 0;
+//   }
 
-  __syncthreads();
+//   __syncthreads();
 
-  for (int iter = 0; iter < n_iters; iter++) {
+//   for (int iter = 0; iter < n_iters; iter++) {
 
-    if (best_hard_sat == f_d.nHardClauses && best_soft_sat == f_d.sum_soft_weights) {
-      break;
-    }
+//     if (best_hard_sat == f_d.nHardClauses && best_soft_sat == f_d.sum_soft_weights) {
+//       break;
+//     }
 
-    if (not_improved > restart_threshold) {
-      not_improved = 0;
-      get_random_model(f_d, state, false);
-    }
+//     if (not_improved > restart_threshold) {
+//       not_improved = 0;
+//       get_random_model(f_d, state, false);
+//     }
 
-    bool use_hard = false;
+//     bool use_hard = false;
 
-    if (first_thread) {
-      float randf = curand_uniform(&state[index]);
-      if (randf <= hard_prob) use_hard = true;
-      else use_hard = false;
-    }
-    __syncthreads();
+//     if (first_thread) {
+//       float randf = curand_uniform(&state[index]);
+//       if (randf <= hard_prob) use_hard = true;
+//       else use_hard = false;
+//     }
+//     __syncthreads();
 
-    if (first_thread) max_v = 1;
+//     if (first_thread) max_v = 1;
 
-    for (int v = 1; v <= f_d.nVars; ++v) {
-      if (first_thread) {
-        f_d.model[v] = 1 - f_d.model[v];
-      }
+//     for (int v = 1; v <= f_d.nVars; ++v) {
+//       if (first_thread) {
+//         f_d.model[v] = 1 - f_d.model[v];
+//       }
 
-      __syncthreads();
+//       __syncthreads();
 
-      update_hard_scores(f_d);
-      update_soft_scores(f_d);
+//       update_hard_scores(f_d);
+//       update_soft_scores(f_d);
 
-      __syncthreads();
+//       __syncthreads();
 
-      if (first_thread) {
-        float score = 0.0;
-        if (use_hard) {
-          score += compute_total_hard_score(f_d, curr_hard_sat);
-        } else {
-          score += compute_total_soft_score(f_d, curr_soft_sat);
-        }
-        f_d.var_scores[v] = score;
-        if (f_d.var_scores[v] >= f_d.var_scores[max_v]) {
-          max_v = v;
-        }
-        f_d.model[v] = 1 - f_d.model[v];
-      }
+//       if (first_thread) {
+//         float score = 0.0;
+//         if (use_hard) {
+//           score += compute_total_hard_score(f_d, curr_hard_sat);
+//         } else {
+//           score += compute_total_soft_score(f_d, curr_soft_sat);
+//         }
+//         f_d.var_scores[v] = score;
+//         if (f_d.var_scores[v] >= f_d.var_scores[max_v]) {
+//           max_v = v;
+//         }
+//         f_d.model[v] = 1 - f_d.model[v];
+//       }
 
-    }
+//     }
 
-    __syncthreads();
+//     __syncthreads();
 
-    if (first_thread) {
+//     if (first_thread) {
 
-      f_d.model[max_v] = 1 - f_d.model[max_v];
+//       f_d.model[max_v] = 1 - f_d.model[max_v];
 
-      if (use_hard && f_d.var_scores[max_v] < best_hard_score) {
-        bool smooth;
-        float randf = curand_uniform(&state[index]);
-        smooth = (randf <= sp);
+//       if (use_hard && f_d.var_scores[max_v] < best_hard_score) {
+//         bool smooth;
+//         float randf = curand_uniform(&state[index]);
+//         smooth = (randf <= sp);
 
-        for (unsigned i = 0; i < f_d.nHardClauses; i++) {
-          if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
-            f_d.hard_weights[i]--;
-          }
-          if (!smooth && f_d.hard_scores[i] == 0) {
-            f_d.hard_weights[i]++;
-          }
-        }
-        not_improved++;
-      }
+//         for (unsigned i = 0; i < f_d.nHardClauses; i++) {
+//           if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
+//             f_d.hard_weights[i]--;
+//           }
+//           if (!smooth && f_d.hard_scores[i] == 0) {
+//             f_d.hard_weights[i]++;
+//           }
+//         }
+//         not_improved++;
+//       }
 
-      if (!use_hard && f_d.var_scores[max_v] < best_soft_score) {
-        bool smooth;
-        float randf = curand_uniform(&state[index]);
-        smooth = (randf <= sp);
+//       if (!use_hard && f_d.var_scores[max_v] < best_soft_score) {
+//         bool smooth;
+//         float randf = curand_uniform(&state[index]);
+//         smooth = (randf <= sp);
 
-        for (unsigned i = 0; i < f_d.nSoftClauses; i++) {
-          if (smooth && f_d.soft_weights[i] > 1 && f_d.soft_scores[i] > 0) {
-            f_d.soft_weights[i]--;
-          }
-          if (!smooth && f_d.soft_scores[i] == 0) {
-            f_d.soft_weights[i]++;
-          }
-        }
-        not_improved++;
-      }
-    }
+//         for (unsigned i = 0; i < f_d.nSoftClauses; i++) {
+//           if (smooth && f_d.soft_weights[i] > 1 && f_d.soft_scores[i] > 0) {
+//             f_d.soft_weights[i]--;
+//           }
+//           if (!smooth && f_d.soft_scores[i] == 0) {
+//             f_d.soft_weights[i]++;
+//           }
+//         }
+//         not_improved++;
+//       }
+//     }
 
-    __syncthreads();
+//     __syncthreads();
 
-    update_hard_scores(f_d);
-    update_soft_scores(f_d);
+//     update_hard_scores(f_d);
+//     update_soft_scores(f_d);
     
-    __syncthreads();
+//     __syncthreads();
 
-    if (first_thread) {
-      curr_hard_sat = 0;
-      curr_soft_sat = 0;
-      best_hard_score = compute_total_hard_score(f_d, curr_hard_sat);
-      best_soft_score = compute_total_soft_score(f_d, curr_soft_sat);
+//     if (first_thread) {
+//       curr_hard_sat = 0;
+//       curr_soft_sat = 0;
+//       best_hard_score = compute_total_hard_score(f_d, curr_hard_sat);
+//       best_soft_score = compute_total_soft_score(f_d, curr_soft_sat);
 
-      if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
-        best_hard_sat = curr_hard_sat;
-        best_soft_sat = curr_soft_sat;
+//       if (curr_hard_sat > best_hard_sat || (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
+//         best_hard_sat = curr_hard_sat;
+//         best_soft_sat = curr_soft_sat;
 
-        for (unsigned i = 1; i <= f_d.nVars; ++i) {
-          f_d.best_model[i] = f_d.model[i];
-        }
-      }
-    }
+//         for (unsigned i = 1; i <= f_d.nVars; ++i) {
+//           f_d.best_model[i] = f_d.model[i];
+//         }
+//       }
+//     }
 
-    __syncthreads();
+//     __syncthreads();
 
-  }
+//   }
 
-  __syncthreads();
-  print_final(index, f_d, curr_hard_sat, curr_soft_sat, best_hard_sat, best_soft_sat);
-}
+//   __syncthreads();
+//   print_final(index, f_d, curr_hard_sat, curr_soft_sat, best_hard_sat, best_soft_sat);
+// }

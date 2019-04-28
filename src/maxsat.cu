@@ -87,6 +87,8 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads)
   cudaMalloc(&f_d.best_model, (f_d.nVars+1) * sizeof(int));
   cudaMalloc(&f_d.hard_scores, f_d.nHardClauses * sizeof(int));
   cudaMalloc(&f_d.soft_scores, f_d.nSoftClauses * sizeof(int));
+  cudaMalloc(&f_d.hard_temp, f_d.nHardClauses * sizeof(int));
+  cudaMalloc(&f_d.soft_temp, f_d.nSoftClauses * sizeof(int));
   cudaMalloc(&f_d.hard_weights, f_d.nHardClauses * sizeof(unsigned));
   cudaMalloc(&f_d.var_scores, (f_d.nVars+1) * sizeof(float));
 
@@ -112,6 +114,8 @@ void free_formula_d(MaxSATFormula_d &f_d) {
   cudaFree(f_d.best_model);
   cudaFree(f_d.hard_scores);
   cudaFree(f_d.soft_scores);
+  cudaFree(f_d.hard_temp);
+  cudaFree(f_d.soft_temp);
   cudaFree(f_d.hard_weights);
 }
 

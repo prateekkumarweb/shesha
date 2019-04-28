@@ -38,6 +38,8 @@ struct MaxSATFormula_d {
   int* best_model;
   int* soft_scores;
   int* hard_scores;
+  int* hard_temp;
+  int* soft_temp;
   unsigned *hard_weights;
   float* var_scores;
 
