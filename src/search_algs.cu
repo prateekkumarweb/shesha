@@ -163,38 +163,44 @@ __device__ void compute_total_hard_score(MaxSATFormula_d &f_d, unsigned &curr_ha
 __device__ void compute_total_soft_score(MaxSATFormula_d &f_d, unsigned &curr_soft_sat, unsigned &soft_score) {
   unsigned score = 0;
   int index = threadIdx.x + blockDim.x * blockIdx.x;
-  for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
-    score += f_d.soft_scores[i];
-  }
-  __shared__ int r[blockDim.x];
-  r[index] = score;
-  __syncthreads();
-  for (int size = blockDim.x/2; size > 0; size >>= 1) {
-    if (index < size) {
-      r[index] += r[index+size];
-    }
-    __syncthreads();
-  }
-  if (index == 0) {
-    curr_hard_sat = r[0];
-  }
 
-  score = 0;
-  for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
-    score += f_d.soft_temp[i];
-  }
-  __shared__ int r[blockDim.x];
-  r[index] = score;
-  __syncthreads();
-  for (int size = blockDim.x/2; size > 0; size >>= 1) {
-    if (index < size) {
-      r[index] += r[index+size];
+  {
+    for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
+      score += f_d.soft_scores[i];
     }
+    __shared__ int r[blockDim.x];
+    r[index] = score;
     __syncthreads();
+    for (int size = blockDim.x/2; size > 0; size >>= 1) {
+      if (index < size) {
+        r[index] += r[index+size];
+      }
+      __syncthreads();
+    }
+    if (index == 0) {
+      curr_soft_sat = r[0];
+    }
   }
-  if (index == 0) {
-    soft_score = r[0];
+  
+  {
+    score = 0;
+    for (int i = index; i<f_d.nSoftClauses; i+=f_d.nThreads) {
+      score += f_d.soft_temp[i];
+    }
+    __shared__ int r[blockDim.x];
+    r[index] = score;
+    __syncthreads();
+    for (int size = blockDim.x/2; size > 0; size >>= 1) {
+      if (index < size) {
+        r[index] += r[index+size];
+      }
+      __syncthreads();
+    }
+    if (index == 0) {
+      soft_score = r[0];
+    }
   }
+  
 }
 
 __device__ void print_final(int index, MaxSATFormula_d &f_d, unsigned &curr_hard_sat, unsigned &curr_soft_sat, unsigned &best_hard_sat, unsigned &best_soft_sat) {
@@ -229,6 +235,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
   __shared__ float prev_score;
   __shared__ int not_improved;
   unsigned max_v = 1;
+  float score;
 
   if (first_thread) {
     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
@@ -299,7 +306,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
       __syncthreads();
 
       if (first_thread) {
-        float score = 0.0;
+        score = 0.0;
         curr_hard_sat = 0;
         curr_soft_sat = 0;
       }
@@ -376,7 +383,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight, float alp
     __syncthreads();
 
     if (first_thread) {
-      float score = 0.0;
+      score = 0.0;
       curr_hard_sat = 0;
       curr_soft_sat = 0;
     }
