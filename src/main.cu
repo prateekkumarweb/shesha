@@ -8,6 +8,16 @@
 #include <getopt.h>
 #include <curand.h>
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 #include "maxsat.h"
 #include "search_algs.h"
 
@@ -188,9 +198,10 @@ int main(int argc, char **argv) {
   cudaStreamCreate(&s);
 
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
-  if (opt_alg == 1)
+  if (opt_alg == 1) {
     search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha, beta, sp, flip_hard_prob, opt_iters, restart_thresh, d_state);
-  else if (opt_alg == 2)
+    gpuErrchk( cudaPeekAtLastError() );
+  } else if (opt_alg == 2)
     search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, hard_prob, sp, opt_iters, restart_thresh, d_state);
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars+1) * sizeof(int), cudaMemcpyDeviceToHost, s);
