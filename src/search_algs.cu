@@ -202,42 +202,36 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d,
                                          unsigned &soft_score) {
   unsigned score = 0;
   int index = threadIdx.x + blockDim.x * blockIdx.x;
-
-  {
-    for (int i = index; i < f_d.nSoftClauses; i += blockDim.x) {
-      score += f_d.soft_scores[i];
+  for (int i = index; i < f_d.nSoftClauses; i += blockDim.x) {
+    score += f_d.soft_scores[i];
+  }
+  __shared__ int r[1024];
+  r[index] = score;
+  __syncthreads();
+  for (int size = blockDim.x / 2; size > 0; size >>= 1) {
+    if (index < size) {
+      r[index] += r[index + size];
     }
-    __shared__ int r[1024];
-    r[index] = score;
     __syncthreads();
-    for (int size = blockDim.x / 2; size > 0; size >>= 1) {
-      if (index < size) {
-        r[index] += r[index + size];
-      }
-      __syncthreads();
-    }
-    if (index == 0) {
-      curr_soft_sat = r[0];
-    }
+  }
+  if (index == 0) {
+    curr_soft_sat = r[0];
   }
 
-  {
-    score = 0;
-    for (int i = index; i < f_d.nSoftClauses; i += blockDim.x) {
-      score += f_d.soft_temp[i];
+  score = 0;
+  for (int i = index; i < f_d.nSoftClauses; i += blockDim.x) {
+    score += f_d.soft_temp[i];
+  }
+  r[index] = score;
+  __syncthreads();
+  for (int size = blockDim.x / 2; size > 0; size >>= 1) {
+    if (index < size) {
+      r[index] += r[index + size];
     }
-    __shared__ int r[1024];
-    r[index] = score;
     __syncthreads();
-    for (int size = blockDim.x / 2; size > 0; size >>= 1) {
-      if (index < size) {
-        r[index] += r[index + size];
-      }
-      __syncthreads();
-    }
-    if (index == 0) {
-      soft_score = r[0];
-    }
+  }
+  if (index == 0) {
+    soft_score = r[0];
   }
 }
 
