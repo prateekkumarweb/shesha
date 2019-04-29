@@ -343,7 +343,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
         }
       }
 
-      for (unsigned soft_index = 0; soft_index < f_d.nHardClauses;
+      for (unsigned soft_index = 0; soft_index < f_d.nSoftClauses;
            soft_index++) {
         for (unsigned i = f_d.soft_clauses[soft_index];
              i < f_d.soft_clauses[soft_index + 1]; ++i) {
