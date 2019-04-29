@@ -41,7 +41,7 @@ const std::string option_desc[]{
     "Alpha for Alg1",
     "Beta for Alg1",
     "smoothening probability",
-    "probability of choosing hard clause for score in Alg2",
+    "probability of choosing hard clause when local opt is hit",
     "Number of iterations",
     "Number of iterations without improvement between two restarts",
     "Number of blocks to use",
@@ -102,8 +102,7 @@ __global__ void start_kernel(curandState_t *state) {
 
 int main(int argc, char **argv) {
   int opt_alg = 1, opt_iters = 1000;
-  float alpha = 0.9, beta = 0.1, sp = 0.1, hard_prob = 0.5,
-        flip_hard_prob = 0.5;
+  float alpha = 0.9, beta = 0.1, sp = 0.1, hard_prob = 0.5;
   int restart_thresh = 100;
   int nBlocks = 1;
   int nThreads = 1024;
@@ -131,11 +130,6 @@ int main(int argc, char **argv) {
                    "hard_prob") {
           if (optarg) {
             hard_prob = std::stof(optarg);
-          }
-        } else if (std::string(long_options[option_index].name) ==
-                   "flip_hard_prob") {
-          if (optarg) {
-            flip_hard_prob = std::stof(optarg);
           }
         } else if (std::string(long_options[option_index].name) ==
                    "restart_thresh") {
@@ -201,9 +195,9 @@ int main(int argc, char **argv) {
 
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
   if (opt_alg == 1) {
-    search_alg1<<<nBlocks, nThreads, 0, s>>>(
-        f_d, f.sum_soft_weights, alpha, beta, sp, flip_hard_prob, opt_iters,
-        restart_thresh, d_state);
+    search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha,
+                                             beta, sp, hard_prob, opt_iters,
+                                             restart_thresh, d_state);
     gpuErrchk(cudaPeekAtLastError());
   }
   // else if (opt_alg == 2)
