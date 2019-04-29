@@ -303,23 +303,17 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
   compute_total_hard_score(f_d, curr_hard_sat, total_hard_scores);
   compute_total_soft_score(f_d, curr_soft_sat, total_soft_scores);
 
-  // if (first_thread) {
-  prev_score += alpha * total_hard_scores * hard_weight;
-  prev_score += beta * total_soft_scores;
-  best_hard_sat = curr_hard_sat;
-  best_soft_sat = curr_soft_sat;
-  // printf("r");
-  // for (int i=1; i <= f_d.nVars; i++) {
-  //   printf(" %d", f_d.model[i] > 0 ? i : -i);
-  // }
-  // printf("\n");
-  not_improved = 0;
-  // }
+  if (first_thread) {
+    prev_score =
+        alpha * total_hard_scores * hard_weight + beta * total_soft_scores;
+    best_hard_sat = curr_hard_sat;
+    best_soft_sat = curr_soft_sat;
+    not_improved = 0;
+  }
 
-  // __syncthreads();
+  __syncthreads();
 
   for (int iter = 0; iter < n_iters; iter++) {
-
     if (not_improved > restart_threshold) {
       not_improved = 0;
       get_random_model(f_d, state, false);
@@ -365,13 +359,13 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
           if (lit > 0) {
             if (f_d.model[lit] == 1) {
               sat_soft_sum += f_d.soft_weights[soft_index];
-              sat_soft_sum_orig = f_d.soft_weights_orig[soft_index];
+              sat_soft_sum_orig += f_d.soft_weights_orig[soft_index];
               break;
             }
           } else {
             if (f_d.model[-lit] == 0) {
               sat_soft_sum += f_d.soft_weights[soft_index];
-              sat_soft_sum_orig = f_d.soft_weights_orig[soft_index];
+              sat_soft_sum_orig += f_d.soft_weights_orig[soft_index];
               break;
             }
           }
