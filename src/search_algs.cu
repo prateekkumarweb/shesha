@@ -246,17 +246,17 @@ __device__ void print_final(int index, MaxSATFormula_d &f_d,
                             unsigned &best_hard_sat, unsigned &best_soft_sat) {
   if (index == 0) {
     printf("c Last: %d %d\n", curr_hard_sat, curr_soft_sat);
-    printf("v");
-    for (int i = 1; i <= f_d.nVars; i++) {
-      printf(" %d", f_d.model[i] > 0 ? i : -i);
-    }
-    printf("\n");
+    // printf("v");
+    // for (int i = 1; i <= f_d.nVars; i++) {
+    //   printf(" %d", f_d.model[i] > 0 ? i : -i);
+    // }
+    // printf("\n");
     printf("c Best: %d %d\n", best_hard_sat, best_soft_sat);
-    printf("b");
-    for (int i = 1; i <= f_d.nVars; i++) {
-      printf(" %d", f_d.best_model[i] > 0 ? i : -i);
-    }
-    printf("\n");
+    // printf("b");
+    // for (int i = 1; i <= f_d.nVars; i++) {
+    //   printf(" %d", f_d.best_model[i] > 0 ? i : -i);
+    // }
+    // printf("\n");
   }
 }
 

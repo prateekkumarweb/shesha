@@ -174,9 +174,9 @@ void print_model(std::ostream &out, MaxSATFormula &f) {
   }
   std::cout << "Soft: " << ss << " Cost: " << tot - ss << std::endl;
 
-  out << 'v';
-  for (int i = 1; i <= f.nVars; ++i) {
-    out << ' ' << (f.model[i] == 1 ? i : -i);
-  }
-  out << std::endl;
+  // out << 'v';
+  // for (int i = 1; i <= f.nVars; ++i) {
+  //   out << ' ' << (f.model[i] == 1 ? i : -i);
+  // }
+  // out << std::endl;
 }
