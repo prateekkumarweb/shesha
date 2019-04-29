@@ -42,6 +42,8 @@ struct MaxSATFormula_d {
   int* soft_temp;
   unsigned* hard_weights;
   float* var_scores;
+  unsigned* var_hard_orig;
+  unsigned* var_soft_orig;
 
   unsigned nThreads;
 };

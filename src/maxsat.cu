@@ -91,6 +91,8 @@ void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d,
   cudaMalloc(&f_d.soft_temp, f_d.nSoftClauses * sizeof(int));
   cudaMalloc(&f_d.hard_weights, f_d.nHardClauses * sizeof(unsigned));
   cudaMalloc(&f_d.var_scores, (f_d.nVars + 1) * sizeof(float));
+  cudaMalloc(&f_d.var_hard_orig, (f_d.nVars + 1) * sizeof(unsigned));
+  cudaMalloc(&f_d.var_soft_orig, (f_d.nVars + 1) * sizeof(unsigned));
 
   cudaMemcpy(f_d.hard_clauses_lits, f.hard_clauses_lits.data(),
              f_d.nHardLits * sizeof(int), cudaMemcpyHostToDevice);
@@ -124,6 +126,9 @@ void free_formula_d(MaxSATFormula_d &f_d) {
   cudaFree(f_d.hard_temp);
   cudaFree(f_d.soft_temp);
   cudaFree(f_d.hard_weights);
+  cudaFree(f_d.var_scores);
+  cudaFree(f_d.var_hard_orig);
+  cudaFree(f_d.var_soft_orig);
 }
 
 void free_formula(MaxSATFormula &f) { delete[] f.model; }
