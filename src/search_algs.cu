@@ -422,6 +422,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
       }
     }
 
+    __syncthreads();
+
     for (unsigned i = index; i < f_d.nHardClauses; i+=blockDim.x) {
       if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
         f_d.hard_weights[i]--;
