@@ -278,14 +278,17 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
   __shared__ float prev_score;
   __shared__ int not_improved;
 
-  __shared__ unsigned max_v = 1;
-  float score;
+  __shared__ bool smooth;
+  __shared__ bool local_opt;
+
+  __shared__ unsigned max_v;
 
   if (first_thread) {
     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
     prev_score = 0.0;
     curr_hard_sat = 0;
     curr_soft_sat = 0;
+    max_v = 1;
   }
 
   get_random_model(f_d, state);
@@ -300,20 +303,20 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
   compute_total_hard_score(f_d, curr_hard_sat, total_hard_scores);
   compute_total_soft_score(f_d, curr_soft_sat, total_soft_scores);
 
-  if (first_thread) {
-    prev_score += alpha * total_hard_scores * hard_weight;
-    prev_score += beta * total_soft_scores;
-    best_hard_sat = curr_hard_sat;
-    best_soft_sat = curr_soft_sat;
-    // printf("r");
-    // for (int i=1; i <= f_d.nVars; i++) {
-    //   printf(" %d", f_d.model[i] > 0 ? i : -i);
-    // }
-    // printf("\n");
-    not_improved = 0;
-  }
+  // if (first_thread) {
+  prev_score += alpha * total_hard_scores * hard_weight;
+  prev_score += beta * total_soft_scores;
+  best_hard_sat = curr_hard_sat;
+  best_soft_sat = curr_soft_sat;
+  // printf("r");
+  // for (int i=1; i <= f_d.nVars; i++) {
+  //   printf(" %d", f_d.model[i] > 0 ? i : -i);
+  // }
+  // printf("\n");
+  not_improved = 0;
+  // }
 
-  __syncthreads();
+  // __syncthreads();
 
   for (int iter = 0; iter < n_iters; iter++) {
     if (best_hard_sat == f_d.nHardClauses &&
@@ -389,9 +392,6 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
 
     find_max_var(f_d, max_v);
 
-    __shared__ bool smooth;
-    __shared__ bool local_opt;
-
     if (first_thread) {
       if (f_d.var_scores[max_v] >= prev_score) {
         f_d.model[max_v] = 1 - f_d.model[max_v];
@@ -420,6 +420,10 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
 
         not_improved++;
       }
+
+      prev_score = f_d.var_scores[max_v];
+      curr_hard_sat = f_d.var_hard_orig[max_v];
+      curr_soft_sat = f_d.var_soft_orig[max_v];
     }
 
     __syncthreads();
@@ -428,6 +432,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
       for (unsigned i = index; i < f_d.nHardClauses; i += blockDim.x) {
         if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
           f_d.hard_weights[i]--;
+          // Think?
+          prev_score -= alpha * hard_weight;
         }
         if (!smooth && f_d.hard_scores[i] == 0) {
           f_d.hard_weights[i]++;
@@ -437,22 +443,14 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
       for (unsigned i = index; i < f_d.nSoftClauses; i += blockDim.x) {
         if (smooth && f_d.soft_weights[i] > 1 && f_d.soft_scores[i] > 0) {
           f_d.soft_weights[i]--;
+          // Think?
+          prev_score -= beta;
         }
         if (!smooth && f_d.soft_scores[i] == 0) {
           f_d.soft_weights[i]++;
         }
       }
     }
-
-    __syncthreads();
-
-    if (first_thread) {
-      prev_score = f_d.var_scores[max_v];
-      curr_hard_sat = f_d.var_hard_orig[max_v];
-      curr_soft_sat = f_d.var_soft_orig[max_v];
-    }
-
-    __syncthreads();
 
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
@@ -465,6 +463,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
         f_d.best_model[i] = f_d.model[i];
       }
     }
+
+    __syncthreads();
   }
 
   __syncthreads();
