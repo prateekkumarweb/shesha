@@ -23,7 +23,7 @@ __device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state,
 
 __device__ void update_hard_scores(MaxSATFormula_d &f_d) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
-  for (int hard_index = 0; hard_index < f_d.nHardClauses;
+  for (int hard_index = index; hard_index < f_d.nHardClauses;
        hard_index += blockDim.x) {
     f_d.hard_weights[hard_index] = 1;
     int sat = 0;
@@ -48,7 +48,7 @@ __device__ void update_hard_scores(MaxSATFormula_d &f_d) {
 
 __device__ void update_soft_scores(MaxSATFormula_d &f_d) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
-  for (int soft_index = 0; soft_index < f_d.nSoftClauses;
+  for (int soft_index = index; soft_index < f_d.nSoftClauses;
        soft_index += blockDim.x) {
     int sat = 0;
     for (unsigned i = f_d.soft_clauses[soft_index];
