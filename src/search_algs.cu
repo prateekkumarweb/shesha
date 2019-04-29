@@ -155,7 +155,7 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v) {
   unsigned max_v = 1;
   int index = threadIdx.x + blockDim.x * blockIdx.x;
   for (int i = index + 1; i <= f_d.nVars; i += blockDim.x) {
-    if (f_d.var_score[max_v] < f_d.var_scores[i]) {
+    if (f_d.var_scores[max_v] < f_d.var_scores[i]) {
       max_v = i;
     }
   }
@@ -277,6 +277,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
   __shared__ unsigned total_soft_scores;
   __shared__ float prev_score;
   __shared__ int not_improved;
+
   unsigned max_v = 1;
   float score;
 
@@ -390,6 +391,8 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
 
     find_max_var(f_d, max_v);
 
+    __shared__ bool smooth;
+
     if (first_thread) {
       if (f_d.var_scores[max_v] >= prev_score) {
         f_d.model[max_v] = 1 - f_d.model[max_v];
@@ -412,28 +415,28 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
         }
         f_d.model[flip_v] = 1 - f_d.model[flip_v];
 
-        bool smooth;
         randf = curand_uniform(&state[index]);
         smooth = (randf <= sp);
 
-        for (unsigned i = 0; i < f_d.nHardClauses; i++) {
-          if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
-            f_d.hard_weights[i]--;
-          }
-          if (!smooth && f_d.hard_scores[i] == 0) {
-            f_d.hard_weights[i]++;
-          }
-        }
-
-        for (unsigned i = 0; i < f_d.nSoftClauses; i++) {
-          if (smooth && f_d.soft_weights[i] > 1 && f_d.soft_scores[i] > 0) {
-            f_d.soft_weights[i]--;
-          }
-          if (!smooth && f_d.soft_scores[i] == 0) {
-            f_d.soft_weights[i]++;
-          }
-        }
         not_improved++;
+      }
+    }
+
+    for (unsigned i = index; i < f_d.nHardClauses; i+=blockDim.x) {
+      if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
+        f_d.hard_weights[i]--;
+      }
+      if (!smooth && f_d.hard_scores[i] == 0) {
+        f_d.hard_weights[i]++;
+      }
+    }
+
+    for (unsigned i = index; i < f_d.nSoftClauses; i+=blockDim.x) {
+      if (smooth && f_d.soft_weights[i] > 1 && f_d.soft_scores[i] > 0) {
+        f_d.soft_weights[i]--;
+      }
+      if (!smooth && f_d.soft_scores[i] == 0) {
+        f_d.soft_weights[i]++;
       }
     }
 

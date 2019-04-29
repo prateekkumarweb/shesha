@@ -15,7 +15,7 @@ struct MaxSATFormula {
   std::vector<int> hard_clauses_lits;
   std::vector<unsigned> hard_clauses;
 
-  int *model;
+  int* model;
 };
 
 struct MaxSATFormula_d {
@@ -40,16 +40,17 @@ struct MaxSATFormula_d {
   int* hard_scores;
   int* hard_temp;
   int* soft_temp;
-  unsigned *hard_weights;
+  unsigned* hard_weights;
   float* var_scores;
 
   unsigned nThreads;
 };
 
-bool parse_formula(std::istream &in, MaxSATFormula &f);
-void alloc_formuala_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads);
-void free_formula(MaxSATFormula &f);
-void free_formula_d(MaxSATFormula_d &f_d);
-void print_model(std::ostream &out, MaxSATFormula &f);
+bool parse_formula(std::istream& in, MaxSATFormula& f);
+void alloc_formuala_d(MaxSATFormula& f, MaxSATFormula_d& f_d,
+                      unsigned nThreads);
+void free_formula(MaxSATFormula& f);
+void free_formula_d(MaxSATFormula_d& f_d);
+void print_model(std::ostream& out, MaxSATFormula& f);
 
-#endif // MAXSAT_H
+#endif  // MAXSAT_H
