@@ -103,12 +103,12 @@ __global__ void start_kernel(curandState_t *state) {
 }
 
 int main(int argc, char **argv) {
-  int opt_alg = 1, opt_iters = 1000;
-  float alpha = 0.9, beta = 0.1, sp = 0.1, hard_prob = 0.5;
+  int opt_alg = 1, opt_iters = 1000000;
+  float alpha = 1.0, beta = 0.001, sp = 0.001, hard_prob = 0.99;
   int restart_thresh = 100;
   int nBlocks = 1;
   int nThreads = 1024;
-  int hard_inc = 10;
+  int hard_inc = 100;
 
   while (1) {
     int option_index = 0;
