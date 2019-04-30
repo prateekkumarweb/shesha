@@ -173,6 +173,7 @@ void print_model(std::ostream &out, MaxSATFormula &f) {
     ss += s * f.soft_weights[i];
   }
   std::cout << "Soft: " << ss << " Cost: " << tot - ss << std::endl;
+  std::cout << "o " << tot - ss << std::endl;
 
   // out << 'v';
   // for (int i = 1; i <= f.nVars; ++i) {

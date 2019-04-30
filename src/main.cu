@@ -29,6 +29,7 @@ const struct option long_options[] = {
     {"beta", required_argument, 0, 0},
     {"sp", required_argument, 0, 0},
     {"hard_prob", required_argument, 0, 0},
+    {"hard_inc", required_argument, 0, 0},
     {"iters", required_argument, 0, 'n'},
     {"restart_thresh", required_argument, 0, 0},
     {"nblocks", required_argument, 0, 0},
@@ -42,6 +43,7 @@ const std::string option_desc[]{
     "Beta for Alg1",
     "smoothening probability",
     "probability of choosing hard clause when local opt is hit",
+    "Increment to internal hard weight when a hard clause is unsatisfied",
     "Number of iterations",
     "Number of iterations without improvement between two restarts",
     "Number of blocks to use",
@@ -106,6 +108,7 @@ int main(int argc, char **argv) {
   int restart_thresh = 100;
   int nBlocks = 1;
   int nThreads = 1024;
+  int hard_inc = 10;
 
   while (1) {
     int option_index = 0;
@@ -130,6 +133,11 @@ int main(int argc, char **argv) {
                    "hard_prob") {
           if (optarg) {
             hard_prob = std::stof(optarg);
+          }
+        } else if (std::string(long_options[option_index].name) ==
+                   "hard_inc") {
+          if (optarg) {
+            hard_inc = std::stoi(optarg);
           }
         } else if (std::string(long_options[option_index].name) ==
                    "restart_thresh") {
@@ -173,6 +181,14 @@ int main(int argc, char **argv) {
 
   std::cout << "c no. of iterations " << opt_iters << std::endl;
   std::cout << "c algorithm " << opt_alg << std::endl;
+  std::cout << "c alpha " << alpha << std::endl;
+  std::cout << "c beta " << beta << std::endl;
+  std::cout << "c sp " << sp << std::endl;
+  std::cout << "c hard_prob " << hard_prob << std::endl;
+  std::cout << "c restart_thresh " << restart_thresh << std::endl;
+  std::cout << "c hard_inc " << hard_inc << std::endl;
+  std::cout << "c nBlocks " << nBlocks << std::endl;
+  std::cout << "c nThreads " << nThreads << std::endl;
 
   signal(SIGINT, sigint_handler);
   signal(SIGTERM, sigint_handler);
@@ -196,7 +212,7 @@ int main(int argc, char **argv) {
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
   if (opt_alg == 1) {
     search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha,
-                                             beta, sp, hard_prob, opt_iters,
+                                             beta, sp, hard_prob, hard_inc, opt_iters,
                                              restart_thresh, d_state);
     gpuErrchk(cudaPeekAtLastError());
   }

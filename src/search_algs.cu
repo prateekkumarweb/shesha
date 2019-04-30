@@ -233,7 +233,7 @@ __device__ void print_final(int index, MaxSATFormula_d &f_d,
 
 __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
                             float alpha, float beta, float sp,
-                            float flip_hard_prob, int n_iters,
+                            float flip_hard_prob, int hard_inc, int n_iters,
                             int restart_threshold, curandState_t *state) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
@@ -393,21 +393,19 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
       for (unsigned i = index; i < f_d.nHardClauses; i += blockDim.x) {
         if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
           f_d.hard_weights[i]--;
-          // Think?
           prev_score -= alpha * hard_weight;
         }
         if (!smooth && f_d.hard_scores[i] == 0) {
-          f_d.hard_weights[i]++;
+          f_d.hard_weights[i] += hard_inc;
         }
       }
 
       for (unsigned i = index; i < f_d.nSoftClauses; i += blockDim.x) {
         if (smooth && f_d.soft_weights[i] > 1 && f_d.soft_scores[i] > 0) {
           f_d.soft_weights[i]--;
-          // Think?
           prev_score -= beta;
         }
-        if (!smooth && f_d.soft_scores[i] == 0) {
+        if (!smooth && f_d.soft_scores[i] == 0 && f_d.soft_weights[i] < hard_weight) {
           f_d.soft_weights[i]++;
         }
       }
