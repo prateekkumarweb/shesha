@@ -368,9 +368,9 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
 
         // TODO: check if this is strong enough
         if ((use_hard && curr_hard_sat != f_d.nHardClauses) ||
-            curr_soft_sat == f_d.nSoftClauses) {
+            curr_soft_sat == f_d.sum_soft_weights) {
           max_v = choose_var_hard(f_d, state);
-        } else if ((!use_hard && curr_soft_sat != f_d.nSoftClauses) ||
+        } else if ((!use_hard && curr_soft_sat != f_d.sum_soft_weights) ||
                    curr_hard_sat == f_d.nHardClauses) {
           max_v = choose_var_soft(f_d, state);
         }
