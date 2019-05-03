@@ -3,6 +3,7 @@ project(sat_maxsat_gpu LANGUAGES CXX CUDA)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CUDA_STANDARD 11)
 include_directories(include)
+include_directories(glucose-syrup-4.1)
 
 file(GLOB_RECURSE SOURCES "src/*.cu")
 

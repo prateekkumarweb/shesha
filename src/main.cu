@@ -9,6 +9,9 @@
 #include <vector>
 
 #include "core/Solver.h"
+#include "core/SolverTypes.h"
+
+using namespace Glucose;
 
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
@@ -122,7 +125,7 @@ void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
   Solver solver;
   std::vector<Var> solver_vars;
   solver_vars.push_back(0);
-  while (f.nVars >= S.nVars()) S.newVar();
+  while (f.nVars >= solver.nVars()) solver.newVar();
   for (int i=0; i<f.hard_clauses.size()-1; i++) {
     vec<Lit> lits;
     for (int j=f.hard_clauses[i]; j<f.hard_clauses[i+1]; j++) {
@@ -139,17 +142,17 @@ void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
     std::vector<int> model(f.nVars+1, 1);
     if (solved) {
       for (int i=0; i<f.nVars; i++) {
-        if (S.model[i] == l_True) model[i+1] = 1;
+        if (solver.model[i] == l_True) model[i+1] = 1;
         else model[i+1] = 0;
       }
       unsigned sat = find_soft_sat(f, model);
       if (sat > best_sat) {
-        f.model = model;
+        for (int v=1; v<=f.nVars; v++) f.model[v] = model[v];
         best_sat = sat;
       }
       vec<Lit> c1;
       for (int i=1; i<=f.nVars; i++) {
-        c1.push((model1[i] == 0) ? mkLit(i) : ~mkList(i));
+        c1.push((model[i] == 0) ? mkLit(i) : ~mkLit(i));
       }
     } else {
       break;
