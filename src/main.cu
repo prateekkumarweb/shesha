@@ -109,9 +109,9 @@ unsigned find_soft_sat(MaxSATFormula &f, const std::vector<int> &model) {
     for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
       int l = f.soft_clauses_lits[j];
       if (l > 0) {
-        if (f.model[l] == 1) s = 1;
+        if (model[l] == 1) s = 1;
       } else {
-        if (f.model[-l] == 0) s = 1;
+        if (model[-l] == 0) s = 1;
       }
       if (s) break;
     }
@@ -154,6 +154,7 @@ void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
       for (int i=1; i<=f.nVars; i++) {
         c1.push((model[i] == 0) ? mkLit(i) : ~mkLit(i));
       }
+      solver.addClause(c1);
     } else {
       break;
     }
