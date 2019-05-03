@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "core/Solver.h"
+
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line,
@@ -94,6 +96,64 @@ void sigint_handler(int sig) {
 
     print_model(std::cout, f);
     exit(1);
+  }
+}
+
+unsigned find_soft_sat(MaxSATFormula &f, const std::vector<int> &model) {
+  unsigned ss = 0;
+  for (int i = 0; i < f.soft_clauses.size() - 1; i++) {
+    int s = 0;
+    for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
+      int l = f.soft_clauses_lits[j];
+      if (l > 0) {
+        if (f.model[l] == 1) s = 1;
+      } else {
+        if (f.model[-l] == 0) s = 1;
+      }
+      if (s) break;
+    }
+    ss += s * f.soft_weights[i];
+  }
+  return ss;
+}
+
+void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
+  // TODO
+  Solver solver;
+  std::vector<Var> solver_vars;
+  solver_vars.push_back(0);
+  while (f.nVars >= S.nVars()) S.newVar();
+  for (int i=0; i<f.hard_clauses.size()-1; i++) {
+    vec<Lit> lits;
+    for (int j=f.hard_clauses[i]; j<f.hard_clauses[i+1]; j++) {
+      int lit = f.hard_clauses_lits[j];
+      int var = abs(lit)-1;
+      lits.push((lit > 0) ? mkLit(var) : ~mkLit(var));
+    }
+    solver.addClause(lits);
+  }
+  vec<Lit> assumps;
+  unsigned best_sat = 0;
+  for (unsigned k=0; k<nModels; k++) {
+    bool solved = solver.solve(assumps);
+    std::vector<int> model(f.nVars+1, 1);
+    if (solved) {
+      for (int i=0; i<f.nVars; i++) {
+        if (S.model[i] == l_True) model[i+1] = 1;
+        else model[i+1] = 0;
+      }
+      unsigned sat = find_soft_sat(f, model);
+      if (sat > best_sat) {
+        f.model = model;
+        best_sat = sat;
+      }
+      vec<Lit> c1;
+      for (int i=1; i<=f.nVars; i++) {
+        c1.push((model1[i] == 0) ? mkLit(i) : ~mkList(i));
+      }
+    } else {
+      break;
+    }
   }
 }
 
@@ -196,6 +256,8 @@ int main(int argc, char **argv) {
   if (!parse_formula(std::cin, f)) {
     display_error("Invalid input!");
   }
+
+  find_initial_model(f);
 
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);

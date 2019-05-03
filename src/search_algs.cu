@@ -262,7 +262,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
     max_v = 1;
   }
 
-  get_random_model(f_d, state);
+  // get_random_model(f_d, state);
 
   __syncthreads();
 
