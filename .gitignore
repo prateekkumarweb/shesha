@@ -7,3 +7,6 @@
 .vscode
 ._*
 build/
+*.or
+*.a
+glucose-syrup-4.1/simp/depend.mk
