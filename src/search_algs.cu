@@ -156,7 +156,7 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
                 (f_d.var_scores[cr[size + index]] + f_d.var_scores[cr[index]]);
       float randf = curand_uniform(&state[index]);
       if (randf <= p) {
-        cr[index] = cr[score + index];
+        cr[index] = cr[index + size];
       }
       if (f_d.var_scores[r[size + index]] > f_d.var_scores[r[index]]) {
         r[index] = r[index + size];
