@@ -138,7 +138,7 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
     float p =
         f_d.var_scores[i] / (f_d.var_scores[chosen_v] + f_d.var_scores[i]);
     float randf = curand_uniform(&state[index]);
-    if (randf <= p) {
+    if ((f_d.var_scores[i] >= prev_score && f_d.var_scores[chosen_v] < prev_score) || (randf <= p) {
       chosen_v = i;
     }
     if (f_d.var_scores[max_v] < f_d.var_scores[i]) {
@@ -155,7 +155,7 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
       float p = f_d.var_scores[cr[size + index]] /
                 (f_d.var_scores[cr[size + index]] + f_d.var_scores[cr[index]]);
       float randf = curand_uniform(&state[index]);
-      if (randf <= p) {
+      if ((f_d.var_scores[cr[size + index]] >= prev_score && f_d.var_scores[cr[index]] < prev_score) || (randf <= p) {
         cr[index] = cr[index + size];
       }
       if (f_d.var_scores[r[size + index]] > f_d.var_scores[r[index]]) {
