@@ -319,6 +319,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
   for (int iter = 0; iter < n_iters; iter++) {
     if (not_improved > restart_threshold) {
       not_improved = 0;
+      if (first_thread) printf("c Restarting at iter %d\n", iter);
       get_random_model(f_d, state, false, restart_flip);
       __syncthreads();
     }
@@ -447,6 +448,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
       if (index == 0) {
+        printf("c Updated best model at %d\n", iter);
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
       }

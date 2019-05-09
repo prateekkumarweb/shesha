@@ -170,7 +170,7 @@ __global__ void start_kernel(curandState_t *state) {
 
 int main(int argc, char **argv) {
   int opt_iters = 1000000;
-  float alpha = 1.0, beta = 0.001, sp = 0.001, hard_prob = 0.99;
+  float alpha = 0.1, beta = 1.0, sp = 0.001, hard_prob = 0.99;
   int restart_thresh = 100;
   int restart_flip = 5;
   int nBlocks = 1;
