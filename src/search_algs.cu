@@ -442,9 +442,10 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
       if (index == 0) {
-        printf("c Found new best %d\n", iter);
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
+        printf("c Found new best(%d, %d) at iter %d\n", best_hard_sat,
+               best_soft_sat, iter);
       }
 
       for (unsigned i = index + 1; i <= f_d.nVars; i += blockDim.x) {
