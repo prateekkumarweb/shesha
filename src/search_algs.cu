@@ -292,6 +292,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
     curr_soft_sat = 0;
     max_v = 1;
     chosen_v = 1;
+    f_d.model[0] = 0;
   }
 
   // get_random_model(f_d, state);
@@ -448,6 +449,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
       if (index == 0) {
+        f_d.best_model[0] = iter;
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
         printf("c Updated best model(%d, %d) at %d\n", best_hard_sat,
