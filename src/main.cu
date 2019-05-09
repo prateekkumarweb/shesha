@@ -29,7 +29,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
 
 const struct option long_options[] = {
     {"help", no_argument, 0, 'h'},
-    {"alg", required_argument, 0, 'a'},
     {"alpha", required_argument, 0, 0},
     {"beta", required_argument, 0, 0},
     {"sp", required_argument, 0, 0},
@@ -37,20 +36,21 @@ const struct option long_options[] = {
     {"hard_inc", required_argument, 0, 0},
     {"iters", required_argument, 0, 'n'},
     {"restart_thresh", required_argument, 0, 0},
+    {"restart_flip", required_argument, 0, 0},
     {"nblocks", required_argument, 0, 0},
     {"nthreads", required_argument, 0, 0},
     {0, 0, 0, 0}};
 
 const std::string option_desc[]{
     "Display help",
-    "Algorithm 1/2",
-    "Alpha for Alg1",
-    "Beta for Alg1",
+    "Alpha for score",
+    "Beta for score",
     "smoothening probability",
     "probability of choosing hard clause when local opt is hit",
     "Increment to internal hard weight when a hard clause is unsatisfied",
     "Number of iterations",
     "Number of iterations without improvement between two restarts",
+    "Number of flips to make at restart",
     "Number of blocks to use",
     "Number of threads per block to use",
     ""};
@@ -126,32 +126,34 @@ void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
   std::vector<Var> solver_vars;
   solver_vars.push_back(0);
   while (f.nVars >= solver.nVars()) solver.newVar();
-  for (int i=0; i<f.hard_clauses.size()-1; i++) {
+  for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
     vec<Lit> lits;
-    for (int j=f.hard_clauses[i]; j<f.hard_clauses[i+1]; j++) {
+    for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
       int lit = f.hard_clauses_lits[j];
-      int var = abs(lit)-1;
+      int var = abs(lit) - 1;
       lits.push((lit > 0) ? mkLit(var) : ~mkLit(var));
     }
     solver.addClause(lits);
   }
   vec<Lit> assumps;
   unsigned best_sat = 0;
-  for (unsigned k=0; k<nModels; k++) {
+  for (unsigned k = 0; k < nModels; k++) {
     bool solved = solver.solve(assumps);
-    std::vector<int> model(f.nVars+1, 1);
+    std::vector<int> model(f.nVars + 1, 1);
     if (solved) {
-      for (int i=0; i<f.nVars; i++) {
-        if (solver.model[i] == l_True) model[i+1] = 1;
-        else model[i+1] = 0;
+      for (int i = 0; i < f.nVars; i++) {
+        if (solver.model[i] == l_True)
+          model[i + 1] = 1;
+        else
+          model[i + 1] = 0;
       }
       unsigned sat = find_soft_sat(f, model);
       if (sat > best_sat) {
-        for (int v=1; v<=f.nVars; v++) f.model[v] = model[v];
+        for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
         best_sat = sat;
       }
       vec<Lit> c1;
-      for (int i=1; i<=f.nVars; i++) {
+      for (int i = 1; i <= f.nVars; i++) {
         c1.push((model[i] == 0) ? mkLit(i) : ~mkLit(i));
       }
       solver.addClause(c1);
@@ -167,16 +169,17 @@ __global__ void start_kernel(curandState_t *state) {
 }
 
 int main(int argc, char **argv) {
-  int opt_alg = 1, opt_iters = 1000000;
+  int opt_iters = 1000000;
   float alpha = 1.0, beta = 0.001, sp = 0.001, hard_prob = 0.99;
   int restart_thresh = 100;
+  int restart_flip = 5;
   int nBlocks = 1;
   int nThreads = 1024;
   int hard_inc = 100;
 
   while (1) {
     int option_index = 0;
-    int c = getopt_long(argc, argv, "ha:n:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "hn:", long_options, &option_index);
     if (c == -1) break;
 
     switch (c) {
@@ -198,8 +201,7 @@ int main(int argc, char **argv) {
           if (optarg) {
             hard_prob = std::stof(optarg);
           }
-        } else if (std::string(long_options[option_index].name) ==
-                   "hard_inc") {
+        } else if (std::string(long_options[option_index].name) == "hard_inc") {
           if (optarg) {
             hard_inc = std::stoi(optarg);
           }
@@ -207,6 +209,11 @@ int main(int argc, char **argv) {
                    "restart_thresh") {
           if (optarg) {
             restart_thresh = std::stoi(optarg);
+          }
+        } else if (std::string(long_options[option_index].name) ==
+                   "restart_flip") {
+          if (optarg) {
+            restart_flip = std::stoi(optarg);
           }
         } else if (std::string(long_options[option_index].name) == "nblocks") {
           if (optarg) {
@@ -226,10 +233,6 @@ int main(int argc, char **argv) {
         display_help(std::string(argv[0]));
         exit(0);
 
-      case 'a':
-        opt_alg = std::stoi(optarg);
-        break;
-
       case 'n':
         opt_iters = std::stoi(optarg);
         break;
@@ -244,12 +247,12 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "c no. of iterations " << opt_iters << std::endl;
-  std::cout << "c algorithm " << opt_alg << std::endl;
   std::cout << "c alpha " << alpha << std::endl;
   std::cout << "c beta " << beta << std::endl;
   std::cout << "c sp " << sp << std::endl;
   std::cout << "c hard_prob " << hard_prob << std::endl;
   std::cout << "c restart_thresh " << restart_thresh << std::endl;
+  std::cout << "c restart_flip " << restart_flip << std::endl;
   std::cout << "c hard_inc " << hard_inc << std::endl;
   std::cout << "c nBlocks " << nBlocks << std::endl;
   std::cout << "c nThreads " << nThreads << std::endl;
@@ -276,15 +279,10 @@ int main(int argc, char **argv) {
   cudaStreamCreate(&s);
 
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
-  if (opt_alg == 1) {
-    search_alg1<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights, alpha,
-                                             beta, sp, hard_prob, hard_inc, opt_iters,
-                                             restart_thresh, d_state);
-    gpuErrchk(cudaPeekAtLastError());
-  }
-  // else if (opt_alg == 2)
-  // search_alg2<<<nBlocks, nThreads, 0, s>>>(f_d, f.sum_soft_weights,
-  // hard_prob, sp, opt_iters, restart_thresh, d_state);
+  search_alg<<<nBlocks, nThreads, 0, s>>>(
+      f_d, f.sum_soft_weights, alpha, beta, sp, hard_prob, hard_inc, opt_iters,
+      restart_thresh, restart_flip, d_state);
+  gpuErrchk(cudaPeekAtLastError());
 
   cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars + 1) * sizeof(int),
                   cudaMemcpyDeviceToHost, s);

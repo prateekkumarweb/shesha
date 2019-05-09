@@ -8,16 +8,23 @@
 #include "search_algs.h"
 
 __device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state,
-                                 bool update_best = true) {
+                                 bool update_best, int restart_flip = -1) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
   for (int var_index = index + 1; var_index <= f_d.nVars;
        var_index += blockDim.x) {
     float randf = curand_uniform(&state[index]);
-    if (randf <= 0.5)
-      f_d.model[var_index] = 1;
-    else
-      f_d.model[var_index] = 0;
-    if (update_best) f_d.best_model[var_index] = f_d.model[var_index];
+    if (restart_flip == -1) {
+      if (randf <= 0.5)
+        f_d.model[var_index] = 1;
+      else
+        f_d.model[var_index] = 0;
+      if (update_best) f_d.best_model[var_index] = f_d.model[var_index];
+    } else {
+      float p = float(restart_flip) / float(f_d.nVars);
+      if (randf <= p) {
+        f_d.model[var_index] = 1 - f_d.model[var_index];
+      }
+    }
   }
 }
 
@@ -253,10 +260,11 @@ __device__ void print_final(int index, MaxSATFormula_d &f_d,
   }
 }
 
-__global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
-                            float alpha, float beta, float sp,
-                            float flip_hard_prob, int hard_inc, int n_iters,
-                            int restart_threshold, curandState_t *state) {
+__global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
+                           float alpha, float beta, float sp,
+                           float flip_hard_prob, int hard_inc, int n_iters,
+                           int restart_threshold, int restart_flip,
+                           curandState_t *state) {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
   bool first_thread = (index == 0);
@@ -311,7 +319,7 @@ __global__ void search_alg1(MaxSATFormula_d f_d, unsigned hard_weight,
   for (int iter = 0; iter < n_iters; iter++) {
     if (not_improved > restart_threshold) {
       not_improved = 0;
-      get_random_model(f_d, state, false);
+      get_random_model(f_d, state, false, restart_flip);
       __syncthreads();
     }
 
