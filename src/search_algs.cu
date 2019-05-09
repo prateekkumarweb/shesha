@@ -145,8 +145,8 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
     float p =
         f_d.var_scores[i] / (f_d.var_scores[chosen_v] + f_d.var_scores[i]);
     float randf = curand_uniform(&state[index]);
-    if ((f_d.var_scores[i] >= prev_score &&
-         f_d.var_scores[chosen_v] < prev_score) ||
+    if ((f_d.var_scores[i] > prev_score &&
+         f_d.var_scores[chosen_v] <= prev_score) ||
         (randf <= p)) {
       chosen_v = i;
     }
@@ -159,13 +159,13 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
   r[index] = max_v;
   cr[index] = chosen_v;
   __syncthreads();
-  for (int size = blockDim.x / 2; size > 0; size >>= 1) {
+  for (int size = blockDim.x >> 1; size > 0; size >>= 1) {
     if (index < size) {
       float p = f_d.var_scores[cr[size + index]] /
                 (f_d.var_scores[cr[size + index]] + f_d.var_scores[cr[index]]);
       float randf = curand_uniform(&state[index]);
-      if ((f_d.var_scores[cr[size + index]] >= prev_score &&
-           f_d.var_scores[cr[index]] < prev_score) ||
+      if ((f_d.var_scores[cr[size + index]] > prev_score &&
+           f_d.var_scores[cr[index]] <= prev_score) ||
           (randf <= p)) {
         cr[index] = cr[index + size];
       }
@@ -192,7 +192,7 @@ __device__ void compute_total_hard_score(MaxSATFormula_d &f_d,
   __shared__ int r[1024];
   r[index] = score;
   __syncthreads();
-  for (int size = blockDim.x / 2; size > 0; size >>= 1) {
+  for (int size = blockDim.x >> 1; size > 0; size >>= 1) {
     if (index < size) {
       r[index] += r[index + size];
     }
@@ -214,7 +214,7 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d,
   __shared__ int r[1024];
   r[index] = score;
   __syncthreads();
-  for (int size = blockDim.x / 2; size > 0; size >>= 1) {
+  for (int size = blockDim.x >> 1; size > 0; size >>= 1) {
     if (index < size) {
       r[index] += r[index + size];
     }
@@ -230,7 +230,7 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d,
   }
   r[index] = score;
   __syncthreads();
-  for (int size = blockDim.x / 2; size > 0; size >>= 1) {
+  for (int size = blockDim.x >> 1; size > 0; size >>= 1) {
     if (index < size) {
       r[index] += r[index + size];
     }
@@ -387,7 +387,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
     find_max_var(f_d, max_v, chosen_v, prev_score, state);
 
     if (first_thread) {
-      if (f_d.var_scores[max_v] >= prev_score) {
+      if (f_d.var_scores[max_v] > prev_score) {
         f_d.model[chosen_v] = 1 - f_d.model[chosen_v];
         local_opt = false;
       } else {
@@ -448,9 +448,10 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
       if (index == 0) {
-        printf("c Updated best model at %d\n", iter);
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
+        printf("c Updated best model(%d, %d) at %d\n", best_hard_sat,
+               best_soft_sat, iter);
       }
 
       for (unsigned i = index + 1; i <= f_d.nVars; i += blockDim.x) {
