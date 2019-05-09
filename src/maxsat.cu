@@ -134,6 +134,7 @@ void free_formula_d(MaxSATFormula_d &f_d) {
 void free_formula(MaxSATFormula &f) { delete[] f.model; }
 
 void print_model(std::ostream &out, MaxSATFormula &f) {
+  std::cout << "c Best Last Updated Iter " << f.model[0] << std::endl;
   unsigned ss = 0;
   for (auto i : f.soft_weights) {
     ss += i;
