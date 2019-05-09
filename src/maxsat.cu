@@ -7,6 +7,7 @@
 bool parse_formula(std::istream &in, MaxSATFormula &f) {
   std::string line;
   bool first_line = true;
+  bool wcnf = true;
 
   f.soft_clauses.push_back(0);
   f.hard_clauses.push_back(0);
@@ -28,19 +29,25 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
         return false;
       }
       ss >> s;
-      if (s != "wcnf") {
+      if (s == "wcnf") {
+        wcnf = true;
+      } else if (s == "cnf") {
+        wcnf = false;
+      } else {
         return false;
       }
       ss >> f.nVars;
       ss >> f.nClauses;
-      ss >> hardWt;
+      if (wcnf) ss >> hardWt;
+      else hardWt = 10;
       f.hard_weight = hardWt;
       first_line = false;
     } else {
       unsigned tmpWt;
       int lit;
 
-      ss >> tmpWt;
+      if (wcnf) ss >> tmpWt;
+      else tmpWt = 1;
       if (tmpWt == hardWt) {
         ss >> lit;
         while (lit != 0) {
