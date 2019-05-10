@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
   int restart_thresh = 100;
   int restart_flip = 5;
   int nBlocks = 1;
-  int nThreads = 1024;
+  int nThreads = -1;
   int hard_inc = 100;
 
   while (1) {
