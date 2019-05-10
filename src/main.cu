@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
   std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
 
   if (nThreads == -1) {
-    nThreads = std::min(((f.nVars + 31) / 32) * 32, 1024);
+    nThreads = std::min(((f.nVars + 31) / 32) * 32, 1024u);
   }
 
   std::cout << "c Using " << nThreads << " threads" << std::endl;
