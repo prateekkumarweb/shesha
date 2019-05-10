@@ -1,6 +1,7 @@
 #include <curand.h>
 #include <getopt.h>
 #include <signal.h>
+#include <algorithm>
 #include <cassert>
 #include <iomanip>
 #include <iostream>
@@ -269,6 +270,12 @@ int main(int argc, char **argv) {
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
   std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
+
+  if (nThreads == -1) {
+    nThreads = std::min(((f.nVars + 31) / 32) * 32, 1024);
+  }
+
+  std::cout << "c Using " << nThreads << " threads" << std::endl;
 
   alloc_formuala_d(f, f_d, nThreads);
 
