@@ -265,6 +265,7 @@ int main(int argc, char **argv) {
     display_error("Invalid input!");
   }
 
+  f.model[0] = 0;
   find_initial_model(f);
 
   size_t avail, tot;

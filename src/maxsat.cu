@@ -38,16 +38,20 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
       }
       ss >> f.nVars;
       ss >> f.nClauses;
-      if (wcnf) ss >> hardWt;
-      else hardWt = 10;
+      if (wcnf)
+        ss >> hardWt;
+      else
+        hardWt = 10;
       f.hard_weight = hardWt;
       first_line = false;
     } else {
       unsigned tmpWt;
       int lit;
 
-      if (wcnf) ss >> tmpWt;
-      else tmpWt = 1;
+      if (wcnf)
+        ss >> tmpWt;
+      else
+        tmpWt = 1;
       if (tmpWt == hardWt) {
         ss >> lit;
         while (lit != 0) {
@@ -164,6 +168,7 @@ void print_model(std::ostream &out, MaxSATFormula &f) {
     }
     ss += s;
   }
+  unsigned hard_ss = ss;
   std::cout << "c Hard: " << ss << " ";
 
   ss = 0;
@@ -181,7 +186,8 @@ void print_model(std::ostream &out, MaxSATFormula &f) {
     ss += s * f.soft_weights[i];
   }
   std::cout << "Soft: " << ss << " Cost: " << tot - ss << std::endl;
-  std::cout << "o " << tot - ss << std::endl;
+  if (hard_ss == f.hard_clauses.size())
+    std::cout << "o " << tot - ss << std::endl;
 
   out << 'v';
   for (int i = 1; i <= f.nVars; ++i) {
