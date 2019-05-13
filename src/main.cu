@@ -162,6 +162,11 @@ void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
       break;
     }
   }
+
+  if (best_sat != 0) {
+    std::cout << "c Glucose initial cost: " << f.sum_soft_weights - best_sat
+              << std::endl;
+  }
 }
 
 __global__ void start_kernel(curandState_t *state) {
@@ -266,7 +271,8 @@ int main(int argc, char **argv) {
   }
 
   f.model[0] = 0;
-  find_initial_model(f);
+
+  if (f.hard_clauses.size() > 1) find_initial_model(f);
 
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
