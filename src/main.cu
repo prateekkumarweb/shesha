@@ -5,6 +5,7 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -57,19 +58,19 @@ const std::string option_desc[]{
     ""};
 
 void display_help(std::string exec) {
-  std::cout << "Toolname version 0.1" << std::endl;
+  std::cout << "Shesha version 0.1" << std::endl;
   std::cout << "\n"
-            << "Description ..." << std::endl;
+            << "Shesha is an incomplete MaxSAT solver for GPU." << std::endl;
 
   std::cout << "\nUsage:\n";
-  std::cout << " " << exec << " [Options]"
+  std::cout << " " << exec << " [Options] filename"
             << "\n\n";
 
   std::cout << "Options:\n";
   for (int i = 0; long_options[i].name != 0; i++) {
     if (long_options[i].val)
       std::cout << '-' << char(long_options[i].val) << ", ";
-    std::cout << std::left << "--" << std::setw(8) << long_options[i].name
+    std::cout << std::left << "--" << std::setw(16) << long_options[i].name
               << "\t" << option_desc[i] << "\n";
   }
 }
@@ -182,12 +183,11 @@ int main(int argc, char **argv) {
   int nBlocks = 1;
   int nThreads = -1;
   int hard_inc = 100;
+  std::string filename = "";
+  int c = 0;
+  int option_index = 0;
 
-  while (1) {
-    int option_index = 0;
-    int c = getopt_long(argc, argv, "hn:", long_options, &option_index);
-    if (c == -1) break;
-
+  while ((c = getopt_long(argc, argv, "hn:", long_options, &option_index)) != -1) {
     switch (c) {
       case 0:
         if (std::string(long_options[option_index].name) == "alpha") {
@@ -249,6 +249,11 @@ int main(int argc, char **argv) {
   }
 
   if (optind < argc) {
+    filename += argv[optind];
+    std::cout << "Input file: " << filename << std::endl;
+  }
+
+  if (optind + 1 < argc) {
     display_error("Unrecognised argument: " + std::string(argv[optind]));
   }
 
@@ -266,8 +271,15 @@ int main(int argc, char **argv) {
   signal(SIGINT, sigint_handler);
   signal(SIGTERM, sigint_handler);
 
-  if (!parse_formula(std::cin, f)) {
-    display_error("Invalid input!");
+  if (filename == "") {
+    if (!parse_formula(std::cin, f)) {
+      display_error("Invalid input!");
+    }
+  } else {
+    std::ifstream fin(filename);
+    if (!parse_formula(fin, f)) {
+      display_error("Invalid input!");
+    }
   }
 
   f.model[0] = 0;
