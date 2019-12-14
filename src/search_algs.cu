@@ -260,7 +260,7 @@ __device__ void print_final(int index, MaxSATFormula_d &f_d,
   }
 }
 
-__global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
+__global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
                            float alpha, float beta, float sp,
                            float flip_hard_prob, int hard_inc, int n_iters,
                            int restart_threshold, int restart_flip,
@@ -284,6 +284,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
 
   __shared__ unsigned max_v;
   __shared__ unsigned chosen_v;
+  __shared__ unsigned soft_max;
 
   if (first_thread) {
     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
@@ -293,6 +294,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
     max_v = 1;
     chosen_v = 1;
     f_d.model[0] = 0;
+    soft_max = 1;
   }
 
   if (f_d.nHardClauses == 0) get_random_model(f_d, state, true);
@@ -309,7 +311,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
 
   if (first_thread) {
     prev_score =
-        alpha * total_hard_scores * hard_weight + beta * total_soft_scores;
+        alpha * total_hard_scores + beta * total_soft_scores;
     best_hard_sat = curr_hard_sat;
     best_soft_sat = curr_soft_sat;
     not_improved = 0;
@@ -377,7 +379,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
         }
       }
 
-      float score = alpha * sat_hard_sum * hard_weight + beta * sat_soft_sum;
+      float score = alpha * sat_hard_sum + beta * sat_soft_sum;
       f_d.var_scores[v] = score;
       f_d.var_hard_orig[v] = sat_hard_sum_orig;
       f_d.var_soft_orig[v] = sat_soft_sum_orig;
@@ -395,12 +397,8 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
         local_opt = true;
         bool use_hard;
         float randf = curand_uniform(&state[index]);
-        if (randf <= flip_hard_prob)
-          use_hard = true;
-        else
-          use_hard = false;
+        use_hard = (randf <= flip_hard_prob);
 
-        // TODO: check if this is strong enough
         if ((use_hard && curr_hard_sat != f_d.nHardClauses) ||
             curr_soft_sat == f_d.sum_soft_weights) {
           chosen_v = choose_var_hard(f_d, state);
@@ -427,7 +425,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
       for (unsigned i = index; i < f_d.nHardClauses; i += blockDim.x) {
         if (smooth && f_d.hard_weights[i] > 1 && f_d.hard_scores[i] > 0) {
           f_d.hard_weights[i]--;
-          prev_score -= alpha * hard_weight;
+          prev_score -= alpha;
         }
         if (!smooth && f_d.hard_scores[i] == 0) {
           f_d.hard_weights[i] += hard_inc;
@@ -440,7 +438,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
           prev_score -= beta;
         }
         if (!smooth && f_d.soft_scores[i] == 0 &&
-            f_d.soft_weights[i] < hard_weight) {
+            f_d.soft_weights[i] < soft_max) {
           f_d.soft_weights[i]++;
         }
       }
@@ -454,6 +452,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned hard_weight,
         best_soft_sat = curr_soft_sat;
         printf("c Updated best model(%d, %d) at %d\n", best_hard_sat,
                best_soft_sat, iter);
+        soft_max += soft_max_delta;
       }
 
       for (unsigned i = index + 1; i <= f_d.nVars; i += blockDim.x) {

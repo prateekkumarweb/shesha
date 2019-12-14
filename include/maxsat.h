@@ -27,23 +27,23 @@ struct MaxSATFormula_d {
   unsigned nSoftClauses;
   unsigned sum_soft_weights;
 
-  int* soft_clauses_lits;
-  unsigned* soft_clauses;
-  unsigned* soft_weights_orig;
-  unsigned* soft_weights;
-  int* hard_clauses_lits;
-  unsigned* hard_clauses;
+  int* soft_clauses_lits; // nSoftLits
+  unsigned* soft_clauses; // nSoftClauses + 1
+  unsigned* soft_weights_orig; // nSoftClauses
+  unsigned* soft_weights; // nSoftClauses
+  int* hard_clauses_lits; // nHardLits
+  unsigned* hard_clauses; // nHardClauses + 1
+  unsigned* hard_weights; // nHardClauses
 
-  int* model;
-  int* best_model;
-  int* soft_scores;
-  int* hard_scores;
-  int* hard_temp;
-  int* soft_temp;
-  unsigned* hard_weights;
-  float* var_scores;
-  unsigned* var_hard_orig;
-  unsigned* var_soft_orig;
+  int* model; // nVars + 1
+  int* best_model; // nVars + 1
+  int* soft_scores; // nSoftClauses
+  int* hard_scores; // nHardClauses
+  int* hard_temp; // nHardClauses
+  int* soft_temp; // nSoftClauses
+  float* var_scores; // nVars + 1
+  unsigned* var_hard_orig; // nVars + 1
+  unsigned* var_soft_orig; // nVars + 1
 
   unsigned nThreads;
 };
