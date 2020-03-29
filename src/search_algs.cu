@@ -297,7 +297,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     soft_max = 1;
   }
 
-  if (f_d.nHardClauses == 0) get_random_model(f_d, state, true);
+  // if (f_d.nHardClauses == 0) get_random_model(f_d, state, true);
 
   __syncthreads();
 
@@ -399,8 +399,8 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
         float randf = curand_uniform(&state[index]);
         use_hard = (randf <= flip_hard_prob);
 
-        if ((use_hard && curr_hard_sat != f_d.nHardClauses) ||
-            curr_soft_sat == f_d.sum_soft_weights) {
+        if (f_d.nHardClauses > 0 && ((use_hard && curr_hard_sat != f_d.nHardClauses) ||
+            curr_soft_sat == f_d.sum_soft_weights)) {
           chosen_v = choose_var_hard(f_d, state);
         } else if ((!use_hard && curr_soft_sat != f_d.sum_soft_weights) ||
                    curr_hard_sat == f_d.nHardClauses) {
