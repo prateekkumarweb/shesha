@@ -10,10 +10,12 @@
 #include <string>
 #include <vector>
 
-#include "core/Solver.h"
-#include "core/SolverTypes.h"
+// #include "core/Solver.h"
+// #include "core/SolverTypes.h"
+#include "basis_pms.h"
+#include "pms.h"
 
-using namespace Glucose;
+// using namespace Glucose;
 
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
@@ -122,53 +124,53 @@ unsigned find_soft_sat(MaxSATFormula &f, const std::vector<int> &model) {
   return ss;
 }
 
-void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
-  // TODO
-  Solver solver;
-  std::vector<Var> solver_vars;
-  solver_vars.push_back(0);
-  while (f.nVars >= solver.nVars()) solver.newVar();
-  for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
-    vec<Lit> lits;
-    for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
-      int lit = f.hard_clauses_lits[j];
-      int var = abs(lit) - 1;
-      lits.push((lit > 0) ? mkLit(var) : ~mkLit(var));
-    }
-    solver.addClause(lits);
-  }
-  vec<Lit> assumps;
-  unsigned best_sat = 0;
-  for (unsigned k = 0; k < nModels; k++) {
-    bool solved = solver.solve(assumps);
-    std::vector<int> model(f.nVars + 1, 1);
-    if (solved) {
-      for (int i = 0; i < f.nVars; i++) {
-        if (solver.model[i] == l_True)
-          model[i + 1] = 1;
-        else
-          model[i + 1] = 0;
-      }
-      unsigned sat = find_soft_sat(f, model);
-      if (sat > best_sat) {
-        for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
-        best_sat = sat;
-      }
-      vec<Lit> c1;
-      for (int i = 1; i <= f.nVars; i++) {
-        c1.push((model[i] == 0) ? mkLit(i) : ~mkLit(i));
-      }
-      solver.addClause(c1);
-    } else {
-      break;
-    }
-  }
+// void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
+//   // TODO
+//   Solver solver;
+//   std::vector<Var> solver_vars;
+//   solver_vars.push_back(0);
+//   while (f.nVars >= solver.nVars()) solver.newVar();
+//   for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
+//     vec<Lit> lits;
+//     for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
+//       int lit = f.hard_clauses_lits[j];
+//       int var = abs(lit) - 1;
+//       lits.push((lit > 0) ? mkLit(var) : ~mkLit(var));
+//     }
+//     solver.addClause(lits);
+//   }
+//   vec<Lit> assumps;
+//   unsigned best_sat = 0;
+//   for (unsigned k = 0; k < nModels; k++) {
+//     bool solved = solver.solve(assumps);
+//     std::vector<int> model(f.nVars + 1, 1);
+//     if (solved) {
+//       for (int i = 0; i < f.nVars; i++) {
+//         if (solver.model[i] == l_True)
+//           model[i + 1] = 1;
+//         else
+//           model[i + 1] = 0;
+//       }
+//       unsigned sat = find_soft_sat(f, model);
+//       if (sat > best_sat) {
+//         for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
+//         best_sat = sat;
+//       }
+//       vec<Lit> c1;
+//       for (int i = 1; i <= f.nVars; i++) {
+//         c1.push((model[i] == 0) ? mkLit(i) : ~mkLit(i));
+//       }
+//       solver.addClause(c1);
+//     } else {
+//       break;
+//     }
+//   }
 
-  if (best_sat != 0) {
-    std::cout << "c Glucose initial cost: " << f.sum_soft_weights - best_sat
-              << std::endl;
-  }
-}
+//   if (best_sat != 0) {
+//     std::cout << "c Glucose initial cost: " << f.sum_soft_weights - best_sat
+//               << std::endl;
+//   }
+// }
 
 __global__ void start_kernel(curandState_t *state) {
   int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -271,11 +273,17 @@ int main(int argc, char **argv) {
   signal(SIGINT, sigint_handler);
   signal(SIGTERM, sigint_handler);
 
+  Satlike sl;
+  std::vector<int> init_solution;
+
   if (filename == "") {
+    display_error("Filename required");
+    exit(1);
     if (!parse_formula(std::cin, f)) {
       display_error("Invalid input!");
     }
   } else {
+    sl.build_instance(filename.c_str());
     std::ifstream fin(filename);
     if (!parse_formula(fin, f)) {
       display_error("Invalid input!");
@@ -284,7 +292,19 @@ int main(int argc, char **argv) {
 
   f.model[0] = 0;
 
-  if (f.hard_clauses.size() > 1) find_initial_model(f);
+  sl.decimation_only(init_solution, argv[1]);
+  sl.print_best_solution();
+
+  // if (f.hard_clauses.size() > 1) find_initial_model(f);
+
+  std::vector<int> model(f.nVars + 1, 1);
+  for (int i = 0; i < f.nVars; i++) {
+    model[i+1] = sl.best_soln[i+1];
+  }
+  unsigned sat = find_soft_sat(f, model);
+  std::cout << "o sat " << sat << std::endl;
+  for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
+  sl.free_memory();
 
   size_t avail, tot;
   cudaMemGetInfo(&avail, &tot);
@@ -305,6 +325,7 @@ int main(int argc, char **argv) {
   cudaStreamCreate(&s);
 
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
+  gpuErrchk(cudaPeekAtLastError());
   search_alg<<<nBlocks, nThreads, 0, s>>>(
       f_d, f.sum_soft_weights, alpha, beta, sp, hard_prob, hard_inc, opt_iters,
       restart_thresh, restart_flip, d_state);
