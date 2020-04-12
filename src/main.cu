@@ -1,11 +1,18 @@
+// // for __syncthreads()
+// #ifndef __CUDACC__
+// #define __CUDACC__
+// #endif
+
 #include <curand.h>
+#include <device_launch_parameters.h>
 #include <getopt.h>
 #include <signal.h>
+
 #include <algorithm>
 #include <cassert>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -189,7 +196,8 @@ int main(int argc, char **argv) {
   int c = 0;
   int option_index = 0;
 
-  while ((c = getopt_long(argc, argv, "hn:", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, argv, "hn:", long_options, &option_index)) !=
+         -1) {
     switch (c) {
       case 0:
         if (std::string(long_options[option_index].name) == "alpha") {
@@ -299,7 +307,7 @@ int main(int argc, char **argv) {
 
   std::vector<int> model(f.nVars + 1, 1);
   for (int i = 0; i < f.nVars; i++) {
-    model[i+1] = sl.best_soln[i+1];
+    model[i + 1] = sl.best_soln[i + 1];
   }
   unsigned sat = find_soft_sat(f, model);
   std::cout << "o sat " << sat << std::endl;
@@ -316,7 +324,7 @@ int main(int argc, char **argv) {
 
   std::cout << "c Using " << nThreads << " threads" << std::endl;
 
-  alloc_formuala_d(f, f_d, nThreads);
+  alloc_formula_d(f, f_d, nThreads, nBlocks);
 
   curandState_t *d_state;
   cudaMalloc(&d_state, nBlocks * nThreads * sizeof(curandState_t));
