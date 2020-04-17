@@ -94,6 +94,9 @@ void display_error(std::string err) {
 MaxSATFormula f;
 MaxSATFormula_d f_d;
 
+int nBlocks = 1;
+int nThreads = -1;
+
 void sigint_handler(int sig) {
   static int call = 0;
   if (call > 0) {
@@ -104,7 +107,8 @@ void sigint_handler(int sig) {
     std::cout << "c Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
-    cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars + 1) * sizeof(int),
+    cudaMemcpyAsync(f.model, f_d.best_model,
+                    (f.nVars + 1) * sizeof(int) * nBlocks,
                     cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
@@ -189,8 +193,6 @@ int main(int argc, char **argv) {
   float alpha = 0.1, beta = 1.0, sp = 0.001, hard_prob = 0.99;
   int restart_thresh = 100;
   int restart_flip = 5;
-  int nBlocks = 1;
-  int nThreads = -1;
   int hard_inc = 100;
   std::string filename = "";
   int c = 0;
@@ -298,6 +300,8 @@ int main(int argc, char **argv) {
     }
   }
 
+  f.model = new int[(f.nVars + 1) * nBlocks];
+
   f.model[0] = 0;
 
   sl.decimation_only(init_solution, argv[1]);
@@ -339,15 +343,15 @@ int main(int argc, char **argv) {
       restart_thresh, restart_flip, d_state);
   gpuErrchk(cudaPeekAtLastError());
 
-  cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars + 1) * sizeof(int),
-                  cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(f.model, f_d.best_model,
+                  (f.nVars + 1) * sizeof(int) * nBlocks, cudaMemcpyDeviceToHost,
+                  s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 
   print_model(std::cout, f);
 
-  free_formula_d(f_d);
-  free_formula(f);
+  free_formula_d(f, f_d);
   cudaFree(d_state);
 
   return 0;
