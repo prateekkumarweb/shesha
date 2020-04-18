@@ -56,6 +56,6 @@ bool parse_formula(std::istream& in, MaxSATFormula& f);
 void alloc_formula_d(MaxSATFormula& f, MaxSATFormula_d& f_d, unsigned nThreads,
                      unsigned nBlocks);
 void free_formula_d(MaxSATFormula& f, MaxSATFormula_d& f_d);
-void print_model(std::ostream& out, MaxSATFormula& f);
+void print_model(std::ostream& out, MaxSATFormula& f, unsigned nBlocks);
 
 #endif  // MAXSAT_H

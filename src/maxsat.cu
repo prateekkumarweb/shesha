@@ -148,54 +148,85 @@ void free_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
   cudaFree(f_d.best_model);
 }
 
-void print_model(std::ostream &out, MaxSATFormula &f) {
-  std::cout << "c Best Last Updated Iter " << f.model[0] << std::endl;
-  unsigned ss = 0;
+void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
+  unsigned tot = 0;
   for (auto i : f.soft_weights) {
-    ss += i;
+    tot += i;
   }
   std::cout << "c Original Hard: " << f.hard_clauses.size() - 1
-            << " Soft: " << ss << std::endl;
-  unsigned tot = ss;
+            << " Soft: " << tot << std::endl;
 
-  ss = 0;
-  for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
-    int s = 0;
-    for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
-      int l = f.hard_clauses_lits[j];
-      if (l > 0) {
-        if (f.model[l] == 1) s = 1;
-      } else {
-        if (f.model[-l] == 0) s = 1;
+  unsigned *hard_ss = new unsigned[nBlocks];
+  unsigned *soft_ss = new unsigned[nBlocks];
+  unsigned best_hard_ss = 0;
+  unsigned best_soft_ss = 0;
+  int best_block = -1;
+
+#define MODEL(b, i) f.model[i + (f.nVars + 1) * b]
+
+  for (int b = 0; b < nBlocks; b++) {
+    unsigned ss = 0;
+    for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
+      int s = 0;
+      for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
+        int l = f.hard_clauses_lits[j];
+        if (l > 0) {
+          if (MODEL(b, l) == 1) s = 1;
+        } else {
+          if (MODEL(b, -l) == 0) s = 1;
+        }
+        if (s) break;
       }
-      if (s) break;
+      ss += s;
     }
-    ss += s;
-  }
-  unsigned hard_ss = ss;
-  std::cout << "c Hard: " << ss << " ";
+    hard_ss[b] = ss;
 
-  ss = 0;
-  for (int i = 0; i < f.soft_clauses.size() - 1; i++) {
-    int s = 0;
-    for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
-      int l = f.soft_clauses_lits[j];
-      if (l > 0) {
-        if (f.model[l] == 1) s = 1;
-      } else {
-        if (f.model[-l] == 0) s = 1;
+    ss = 0;
+    for (int i = 0; i < f.soft_clauses.size() - 1; i++) {
+      int s = 0;
+      for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
+        int l = f.soft_clauses_lits[j];
+        if (l > 0) {
+          if (MODEL(b, l) == 1) s = 1;
+        } else {
+          if (MODEL(b, -l) == 0) s = 1;
+        }
+        if (s) break;
       }
-      if (s) break;
+      ss += s * f.soft_weights[i];
     }
-    ss += s * f.soft_weights[i];
-  }
-  std::cout << "Soft: " << ss << " Cost: " << tot - ss << std::endl;
-  if (hard_ss + 1 == f.hard_clauses.size())
-    std::cout << "o " << tot - ss << std::endl;
+    soft_ss[b] = ss;
 
-  out << 'v';
-  for (int i = 1; i <= f.nVars; ++i) {
-    out << ' ' << (f.model[i] == 1 ? i : -i);
+    std::cout << "c Block: " << b << " Last Updated Iter " << MODEL(b, 0)
+              << std::endl;
+    std::cout << "c Block: " << b << " Hard: " << hard_ss[b]
+              << " Soft: " << soft_ss[b] << " Cost: " << tot - soft_ss[b]
+              << std::endl;
+
+    if (best_block == -1 || hard_ss[b] > best_hard_ss ||
+        (hard_ss[b] == best_hard_ss && soft_ss[b] > best_soft_ss)) {
+      best_block = b;
+      best_hard_ss = hard_ss[b];
+      best_soft_ss = soft_ss[b];
+    }
   }
-  out << std::endl;
+
+  if (best_block != -1) {
+    std::cout << "c Best Block: " << best_block << " Hard: " << best_hard_ss
+              << " Soft: " << best_soft_ss << " Cost: " << tot - best_soft_ss
+              << std::endl;
+    if (best_hard_ss + 1 == f.hard_clauses.size())
+      std::cout << "o " << tot - best_soft_ss << std::endl;
+
+    out << 'v';
+    for (int i = 1; i <= f.nVars; ++i) {
+      out << ' ' << (MODEL(best_block, i) == 1 ? i : -i);
+    }
+    out << std::endl;
+  }
+
+#undef MODEL
+
+  delete[] hard_ss;
+  delete[] soft_ss;
 }

@@ -112,7 +112,7 @@ void sigint_handler(int sig) {
                     cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
-    print_model(std::cout, f);
+    print_model(std::cout, f, nBlocks);
     exit(1);
   }
 }
@@ -349,7 +349,7 @@ int main(int argc, char **argv) {
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 
-  print_model(std::cout, f);
+  print_model(std::cout, f, nBlocks);
 
   free_formula_d(f, f_d);
   cudaFree(d_state);
