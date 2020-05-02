@@ -123,12 +123,16 @@ unsigned find_soft_sat(MaxSATFormula &f, const std::vector<int> &model) {
     int s = 0;
     for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
       int l = f.soft_clauses_lits[j];
-      if (l > 0) {
-        if (model[l] == 1) s = 1;
-      } else {
-        if (model[-l] == 0) s = 1;
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
       }
-      if (s) break;
+      // if (l > 0) {
+      //   if (model[l] == 1) s = 1;
+      // } else {
+      //   if (model[-l] == 0) s = 1;
+      // }
+      // if (s) break;
     }
     ss += s * f.soft_weights[i];
   }

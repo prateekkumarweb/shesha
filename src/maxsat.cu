@@ -57,7 +57,8 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
       if (tmpWt == hardWt) {
         ss >> lit;
         while (lit != 0) {
-          f.hard_clauses_lits.push_back(lit);
+          int l = lit > 0 ? (2 * lit) : (-2 * lit + 1);
+          f.hard_clauses_lits.push_back(l);
           ss >> lit;
         }
         f.hard_clauses.push_back(f.hard_clauses_lits.size());
@@ -66,7 +67,8 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
         f.sum_soft_weights += tmpWt;
         ss >> lit;
         while (lit != 0) {
-          f.soft_clauses_lits.push_back(lit);
+          int l = lit > 0 ? (2 * lit) : (-2 * lit + 1);
+          f.soft_clauses_lits.push_back(l);
           ss >> lit;
         }
         f.soft_clauses.push_back(f.soft_clauses_lits.size());
@@ -170,12 +172,16 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
       int s = 0;
       for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
         int l = f.hard_clauses_lits[j];
-        if (l > 0) {
-          if (MODEL(b, l) == 1) s = 1;
-        } else {
-          if (MODEL(b, -l) == 0) s = 1;
+        if ((MODEL(b, (l >> 1)) ^ 1) == (l & 1)) {
+          s = 1;
+          break;
         }
-        if (s) break;
+        // if (l > 0) {
+        //   if (MODEL(b, l) == 1) s = 1;
+        // } else {
+        //   if (MODEL(b, -l) == 0) s = 1;
+        // }
+        // if (s) break;
       }
       ss += s;
     }
@@ -186,12 +192,16 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
       int s = 0;
       for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
         int l = f.soft_clauses_lits[j];
-        if (l > 0) {
-          if (MODEL(b, l) == 1) s = 1;
-        } else {
-          if (MODEL(b, -l) == 0) s = 1;
+        if ((MODEL(b, (l >> 1)) ^ 1) == (l & 1)) {
+          s = 1;
+          break;
         }
-        if (s) break;
+        // if (l > 0) {
+        //   if (MODEL(b, l) == 1) s = 1;
+        // } else {
+        //   if (MODEL(b, -l) == 0) s = 1;
+        // }
+        // if (s) break;
       }
       ss += s * f.soft_weights[i];
     }
