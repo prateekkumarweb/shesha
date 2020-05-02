@@ -52,7 +52,7 @@ __device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state,
     } else {
       float p = float(restart_flip) / float(f_d.nVars);
       if (randf <= p) {
-        MODEL_AT(var_index) = 1 - MODEL_AT(var_index);
+        MODEL_AT(var_index) ^= 1;
       }
     }
   }
@@ -256,13 +256,16 @@ __device__ void print_final(int index, MaxSATFormula_d &f_d,
                             unsigned &best_hard_sat, unsigned &best_soft_sat) {
   if (THR_INDEX == 0 && BLK_INDEX == 0) {
     printf("c Last: %d %d at %d\n", curr_hard_sat, curr_soft_sat, MODEL_AT(0));
+
     // printf("v");
     // for (int i = 1; i <= f_d.nVars; i++) {
     //   printf(" %d", MODEL_AT(i) > 0 ? i : -i);
     // }
     // printf("\n");
+
     printf("c Best: %d %d at %d\n", best_hard_sat, best_soft_sat,
            BEST_MODEL_AT(0));
+
     // printf("b");
     // for (int i = 1; i <= f_d.nVars; i++) {
     //   printf(" %d", BEST_MODEL_AT(i) > 0 ? i : -i);
@@ -332,7 +335,8 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
   for (int iter = 0; iter < n_iters; iter++) {
     if (not_improved > restart_threshold) {
       not_improved = 0;
-      if (first_thread) printf("c Restarting at iter %d\n", iter);
+      if (first_thread)
+        printf("c Block: %d Restarting at iter %d\n", BLK_INDEX, iter);
       get_random_model(f_d, state, false, restart_flip);
       __syncthreads();
     }
@@ -401,7 +405,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
 
     if (first_thread) {
       if (VAR_SCORES_AT(max_v) > prev_score) {
-        MODEL_AT(chosen_v) = 1 - MODEL_AT(chosen_v);
+        MODEL_AT(chosen_v) ^= 1;
         local_opt = false;
       } else {
         local_opt = true;
@@ -417,7 +421,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
                    curr_hard_sat == f_d.nHardClauses) {
           chosen_v = choose_var_soft(f_d, state);
         }
-        MODEL_AT(chosen_v) = 1 - MODEL_AT(chosen_v);
+        MODEL_AT(chosen_v) ^= 1;
 
         randf = curand_uniform(&state[TOT_INDEX]);
         smooth = (randf <= sp);
