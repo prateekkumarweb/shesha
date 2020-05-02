@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
   f.model[0] = 0;
 
   sl.decimation_only(init_solution, argv[1]);
-  sl.print_best_solution();
+  // sl.print_best_solution();
 
   // if (f.hard_clauses.size() > 1) find_initial_model(f);
 

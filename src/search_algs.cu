@@ -47,10 +47,7 @@ __device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state,
        var_index += BLK_DIMEN) {
     float randf = curand_uniform(&state[TOT_INDEX]);
     if (restart_flip == -1) {
-      if (randf <= 0.5)
-        MODEL_AT(var_index) = 1;
-      else
-        MODEL_AT(var_index) = 0;
+      MODEL_AT(var_index) = (randf <= 0.5);
       if (update_best) BEST_MODEL_AT(var_index) = MODEL_AT(var_index);
     } else {
       float p = float(restart_flip) / float(f_d.nVars);
@@ -310,8 +307,6 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     MODEL_AT(0) = 0;
     soft_max = 1;
   }
-
-  __syncthreads();
 
   if (BLK_INDEX != 0) get_random_model(f_d, state, true);
 
