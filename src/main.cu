@@ -108,7 +108,7 @@ void sigint_handler(int sig) {
     cudaStream_t s;
     cudaStreamCreate(&s);
     cudaMemcpyAsync(f.model, f_d.best_model,
-                    (f.nVars + 1) * sizeof(int) * nBlocks,
+                    (f.nVars + 1) * sizeof(unsigned) * nBlocks,
                     cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
@@ -117,18 +117,22 @@ void sigint_handler(int sig) {
   }
 }
 
-unsigned find_soft_sat(MaxSATFormula &f, const std::vector<int> &model) {
+unsigned find_soft_sat(MaxSATFormula &f, const std::vector<unsigned> &model) {
   unsigned ss = 0;
-  for (int i = 0; i < f.soft_clauses.size() - 1; i++) {
-    int s = 0;
-    for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
-      int l = f.soft_clauses_lits[j];
-      if (l > 0) {
-        if (model[l] == 1) s = 1;
-      } else {
-        if (model[-l] == 0) s = 1;
+  for (unsigned i = 0; i < f.soft_clauses.size() - 1; i++) {
+    unsigned s = 0;
+    for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
+      unsigned l = f.soft_clauses_lits[j];
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
       }
-      if (s) break;
+      // if (l > 0) {
+      //   if (model[l] == 1) s = 1;
+      // } else {
+      //   if (model[-l] == 0) s = 1;
+      // }
+      // if (s) break;
     }
     ss += s * f.soft_weights[i];
   }
@@ -300,7 +304,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  f.model = new int[(f.nVars + 1) * nBlocks];
+  f.model = new unsigned[(f.nVars + 1) * nBlocks];
 
   f.model[0] = 0;
 
@@ -309,13 +313,13 @@ int main(int argc, char **argv) {
 
   // if (f.hard_clauses.size() > 1) find_initial_model(f);
 
-  std::vector<int> model(f.nVars + 1, 1);
-  for (int i = 0; i < f.nVars; i++) {
+  std::vector<unsigned> model(f.nVars + 1, 1);
+  for (unsigned i = 0; i < f.nVars; i++) {
     model[i + 1] = sl.best_soln[i + 1];
   }
   unsigned sat = find_soft_sat(f, model);
   std::cout << "o sat " << sat << std::endl;
-  for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
+  for (unsigned v = 1; v <= f.nVars; v++) f.model[v] = model[v];
   sl.free_memory();
 
   size_t avail, tot;
@@ -344,8 +348,8 @@ int main(int argc, char **argv) {
   gpuErrchk(cudaPeekAtLastError());
 
   cudaMemcpyAsync(f.model, f_d.best_model,
-                  (f.nVars + 1) * sizeof(int) * nBlocks, cudaMemcpyDeviceToHost,
-                  s);
+                  (f.nVars + 1) * sizeof(unsigned) * nBlocks,
+                  cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 

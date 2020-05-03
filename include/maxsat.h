@@ -15,7 +15,7 @@ struct MaxSATFormula {
   std::vector<int> hard_clauses_lits;
   std::vector<unsigned> hard_clauses;
 
-  int* model;
+  unsigned* model;
 };
 
 struct MaxSATFormula_d {
@@ -31,8 +31,8 @@ struct MaxSATFormula_d {
   unsigned nBlocks;
 
   // Doesn't change
-  int* hard_clauses_lits;       // nHardLits
-  int* soft_clauses_lits;       // nSoftLits
+  unsigned* hard_clauses_lits;  // nHardLits
+  unsigned* soft_clauses_lits;  // nSoftLits
   unsigned* hard_clauses;       // nHardClauses + 1
   unsigned* soft_clauses;       // nSoftClauses + 1
   unsigned* soft_weights_orig;  // nSoftClauses
@@ -41,7 +41,7 @@ struct MaxSATFormula_d {
   unsigned* hard_weights;  // nHardClauses
   unsigned* soft_weights;  // nSoftClauses
 
-  int* model;        // nVars + 1
+  unsigned* model;   // nVars + 1
   int* hard_scores;  // nHardClauses
   int* soft_scores;  // nSoftClauses
 
@@ -49,7 +49,7 @@ struct MaxSATFormula_d {
   unsigned* var_hard_orig;  // nVars + 1
   unsigned* var_soft_orig;  // nVars + 1
 
-  int* best_model;  // nVars + 1
+  unsigned* best_model;  // nVars + 1
 };
 
 bool parse_formula(std::istream& in, MaxSATFormula& f);
