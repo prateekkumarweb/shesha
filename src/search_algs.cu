@@ -66,10 +66,10 @@ __device__ void update_hard_scores(MaxSATFormula_d &f_d) {
   for (int hard_index = index; hard_index < f_d.nHardClauses;
        hard_index += BLK_DIMEN) {
     HARD_WEIGHTS_AT(hard_index) = 1;
-    int sat = 0;
+    unsigned sat = 0;
     for (unsigned i = f_d.hard_clauses[hard_index];
          i < f_d.hard_clauses[hard_index + 1]; ++i) {
-      int lit = f_d.hard_clauses_lits[i];
+      unsigned lit = f_d.hard_clauses_lits[i];
       if (IS_LIT_SAT(lit)) {
         sat = 1;
         break;
@@ -95,10 +95,10 @@ __device__ void update_soft_scores(MaxSATFormula_d &f_d) {
   for (int soft_index = index; soft_index < f_d.nSoftClauses;
        soft_index += BLK_DIMEN) {
     SOFT_WEIGHTS_AT(soft_index) = f_d.soft_weights_orig[soft_index];
-    int sat = 0;
+    unsigned sat = 0;
     for (unsigned i = f_d.soft_clauses[soft_index];
          i < f_d.soft_clauses[soft_index + 1]; ++i) {
-      int lit = f_d.soft_clauses_lits[i];
+      unsigned lit = f_d.soft_clauses_lits[i];
       if (IS_LIT_SAT(lit)) {
         sat = f_d.soft_weights_orig[soft_index];
         break;
@@ -139,7 +139,7 @@ __device__ unsigned choose_var_hard(MaxSATFormula_d &f_d,
   int lit_index =
       curand_uniform(&state[TOT_INDEX]) *
       (f_d.hard_clauses[hard_index + 1] - f_d.hard_clauses[hard_index]);
-  int lit = f_d.hard_clauses_lits[lit_index];
+  unsigned lit = f_d.hard_clauses_lits[lit_index];
   return VAR_OF_LIT(lit);
   // if (lit < 0) {
   //   return -lit;
@@ -167,7 +167,7 @@ __device__ unsigned choose_var_soft(MaxSATFormula_d &f_d,
   int lit_index =
       curand_uniform(&state[TOT_INDEX]) *
       (f_d.soft_clauses[soft_index + 1] - f_d.soft_clauses[soft_index]);
-  int lit = f_d.soft_clauses_lits[lit_index];
+  unsigned lit = f_d.soft_clauses_lits[lit_index];
   return VAR_OF_LIT(lit);
   // if (lit < 0) {
   //   return -lit;
@@ -345,7 +345,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
 
   __syncthreads();
 
-  for (int iter = 0; iter < n_iters; iter++) {
+  for (unsigned iter = 0; iter < n_iters; iter++) {
     if (not_improved > restart_threshold) {
       not_improved = 0;
       if (first_thread)
@@ -364,7 +364,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
            hard_index++) {
         for (unsigned i = f_d.hard_clauses[hard_index];
              i < f_d.hard_clauses[hard_index + 1]; ++i) {
-          int lit = f_d.hard_clauses_lits[i];
+          unsigned lit = f_d.hard_clauses_lits[i];
           if (VAR_OF_LIT(lit) == v) lit = NEG_LIT(lit);
           // Simulate var flip
           // if (lit == v || -lit == v) lit = -lit;
@@ -393,7 +393,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
            soft_index++) {
         for (unsigned i = f_d.soft_clauses[soft_index];
              i < f_d.soft_clauses[soft_index + 1]; ++i) {
-          int lit = f_d.soft_clauses_lits[i];
+          unsigned lit = f_d.soft_clauses_lits[i];
           if (VAR_OF_LIT(lit) == v) lit = NEG_LIT(lit);
           // Simulate var flip
           // if (lit == v || -lit == v) lit = -lit;
