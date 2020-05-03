@@ -107,8 +107,8 @@ void sigint_handler(int sig) {
     std::cout << "c Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
-    cudaMemcpyAsync(f.model, f_d.best_model,
-                    (f.nVars + 1) * sizeof(unsigned) * nBlocks,
+    cudaMemcpyAsync(f.best_model, f_d.best_model,
+                    (2 * f.nVars + 1) * sizeof(unsigned) * nBlocks,
                     cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
@@ -117,8 +117,21 @@ void sigint_handler(int sig) {
   }
 }
 
-unsigned find_soft_sat(MaxSATFormula &f, const std::vector<unsigned> &model) {
+void print_deci_stats(MaxSATFormula &f, const std::vector<unsigned> &model) {
   unsigned ss = 0;
+  for (unsigned i = 0; i < f.hard_clauses.size() - 1; i++) {
+    unsigned s = 0;
+    for (unsigned j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
+      unsigned l = f.hard_clauses_lits[j];
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
+      }
+    }
+    ss += s;
+  }
+  printf("c Deci Hard: %d ", ss);
+  ss = 0;
   for (unsigned i = 0; i < f.soft_clauses.size() - 1; i++) {
     unsigned s = 0;
     for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
@@ -130,7 +143,7 @@ unsigned find_soft_sat(MaxSATFormula &f, const std::vector<unsigned> &model) {
     }
     ss += s * f.soft_weights[i];
   }
-  return ss;
+  printf("Soft: %d Cost: %d\n", ss, f.sum_soft_weights - ss);
 }
 
 // void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
@@ -298,9 +311,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  f.model = new unsigned[(f.nVars + 1) * nBlocks];
-
-  f.model[0] = 0;
+  f.best_model = new unsigned[(2 * f.nVars + 1) * nBlocks];
 
   sl.decimation_only(init_solution, argv[1]);
   // sl.print_best_solution();
@@ -308,12 +319,11 @@ int main(int argc, char **argv) {
   // if (f.hard_clauses.size() > 1) find_initial_model(f);
 
   std::vector<unsigned> model(f.nVars + 1, 1);
-  for (unsigned i = 0; i < f.nVars; i++) {
-    model[i + 1] = sl.best_soln[i + 1];
+  model[0] = 0;
+  for (unsigned i = 1; i <= f.nVars; i++) {
+    model[i] = sl.best_soln[i];
   }
-  unsigned sat = find_soft_sat(f, model);
-  std::cout << "o sat " << sat << std::endl;
-  for (unsigned v = 1; v <= f.nVars; v++) f.model[v] = model[v];
+  print_deci_stats(f, model);
   sl.free_memory();
 
   size_t avail, tot;
@@ -326,7 +336,7 @@ int main(int argc, char **argv) {
 
   std::cout << "c Using " << nThreads << " threads" << std::endl;
 
-  alloc_formula_d(f, f_d, nThreads, nBlocks);
+  alloc_formula_d(f, f_d, nThreads, nBlocks, model);
 
   curandState_t *d_state;
   cudaMalloc(&d_state, nBlocks * nThreads * sizeof(curandState_t));
@@ -341,8 +351,8 @@ int main(int argc, char **argv) {
       restart_thresh, restart_flip, d_state);
   gpuErrchk(cudaPeekAtLastError());
 
-  cudaMemcpyAsync(f.model, f_d.best_model,
-                  (f.nVars + 1) * sizeof(unsigned) * nBlocks,
+  cudaMemcpyAsync(f.best_model, f_d.best_model,
+                  (2 * f.nVars + 1) * sizeof(unsigned) * nBlocks,
                   cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);

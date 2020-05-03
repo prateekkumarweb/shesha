@@ -37,8 +37,11 @@
 #define VAR_SOFT_ORIG_AT(index) \
   f_d.var_soft_orig[(index) + (BLK_INDEX * (f_d.nVars + 1))]
 #define MODEL_AT(index) f_d.model[(index) + (BLK_INDEX * (f_d.nVars + 1))]
-#define BEST_MODEL_AT(index) \
-  f_d.best_model[(index) + (BLK_INDEX * (f_d.nVars + 1))]
+#define BEST_MODEL_AT_0(index) \
+  f_d.best_model[(index) + (BLK_INDEX * (2 * f_d.nVars + 1))]
+#define BEST_MODEL_AT_1(index) \
+  f_d.best_model[(index) + (BLK_INDEX * (2 * f_d.nVars + 1)) + f_d.nVars]
+#define BEST_MODEL_FLAG BEST_MODEL_AT_0(0)
 #define VAR_OF_LIT(lit) (lit >> 1)
 #define IS_LIT_SAT(lit) ((MODEL_AT(VAR_OF_LIT(lit)) ^ 1) == (lit & 1))
 #define NEG_LIT(lit) (lit ^ 1)
@@ -51,7 +54,9 @@ __device__ void get_random_model(MaxSATFormula_d &f_d, curandState_t *state,
     float randf = curand_uniform(&state[TOT_INDEX]);
     if (restart_flip == -1) {
       MODEL_AT(var_index) = (randf <= 0.5);
-      if (update_best) BEST_MODEL_AT(var_index) = MODEL_AT(var_index);
+      if (update_best)
+        BEST_MODEL_AT_0(var_index) = BEST_MODEL_AT_1(var_index) =
+            MODEL_AT(var_index);
     } else {
       float p = float(restart_flip) / float(f_d.nVars);
       if (randf <= p) {
@@ -267,7 +272,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     curr_soft_sat = 0;
     max_v = 1;
     chosen_v = 1;
-    MODEL_AT(0) = 0;
+    BEST_MODEL_FLAG = 0;
     soft_max = 1;
   }
 
@@ -288,6 +293,9 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     best_hard_sat = curr_hard_sat;
     best_soft_sat = curr_soft_sat;
     not_improved = 0;
+
+    printf("c Block %d: Initial Hard: %d Soft: %d Flag: %d\n", BLK_INDEX,
+           best_hard_sat, best_soft_sat, BEST_MODEL_FLAG);
   }
 
   __syncthreads();
@@ -296,7 +304,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     if (not_improved > restart_threshold) {
       not_improved = 0;
       if (first_thread)
-        printf("c Block: %d Restarting at iter %d\n", BLK_INDEX, iter);
+        printf("c Block %d: Restarting at iter %d\n", BLK_INDEX, iter);
       get_random_model(f_d, state, false, restart_flip);
       __syncthreads();
     }
@@ -406,7 +414,6 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
       if (index == 0) {
-        BEST_MODEL_AT(0) = iter;
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
         printf("c Block %d: Updated best model(%d, %d) at %d\n", BLK_INDEX,
@@ -414,8 +421,20 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
         soft_max += soft_max_delta;
       }
 
-      for (unsigned i = index + 1; i <= f_d.nVars; i += BLK_DIMEN) {
-        BEST_MODEL_AT(i) = MODEL_AT(i);
+      if (BEST_MODEL_FLAG) {
+        for (unsigned i = index + 1; i <= f_d.nVars; i += BLK_DIMEN) {
+          BEST_MODEL_AT_0(i) = MODEL_AT(i);
+        }
+      } else {
+        for (unsigned i = index + 1; i <= f_d.nVars; i += BLK_DIMEN) {
+          BEST_MODEL_AT_1(i) = MODEL_AT(i);
+        }
+      }
+
+      __syncthreads();
+
+      if (index == 0) {
+        atomicXor(&BEST_MODEL_FLAG, 1);
       }
     }
 
