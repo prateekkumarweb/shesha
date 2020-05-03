@@ -1,11 +1,18 @@
+// // for __syncthreads()
+// #ifndef __CUDACC__
+// #define __CUDACC__
+// #endif
+
 #include <curand.h>
+#include <device_launch_parameters.h>
 #include <getopt.h>
 #include <signal.h>
+
 #include <algorithm>
 #include <cassert>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -87,6 +94,9 @@ void display_error(std::string err) {
 MaxSATFormula f;
 MaxSATFormula_d f_d;
 
+int nBlocks = 1;
+int nThreads = -1;
+
 void sigint_handler(int sig) {
   static int call = 0;
   if (call > 0) {
@@ -97,27 +107,26 @@ void sigint_handler(int sig) {
     std::cout << "c Exiting ..." << std::endl;
     cudaStream_t s;
     cudaStreamCreate(&s);
-    cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars + 1) * sizeof(int),
+    cudaMemcpyAsync(f.model, f_d.best_model,
+                    (f.nVars + 1) * sizeof(unsigned) * nBlocks,
                     cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
-    print_model(std::cout, f);
+    print_model(std::cout, f, nBlocks);
     exit(1);
   }
 }
 
-unsigned find_soft_sat(MaxSATFormula &f, const std::vector<int> &model) {
+unsigned find_soft_sat(MaxSATFormula &f, const std::vector<unsigned> &model) {
   unsigned ss = 0;
-  for (int i = 0; i < f.soft_clauses.size() - 1; i++) {
-    int s = 0;
-    for (int j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
-      int l = f.soft_clauses_lits[j];
-      if (l > 0) {
-        if (model[l] == 1) s = 1;
-      } else {
-        if (model[-l] == 0) s = 1;
+  for (unsigned i = 0; i < f.soft_clauses.size() - 1; i++) {
+    unsigned s = 0;
+    for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
+      unsigned l = f.soft_clauses_lits[j];
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
       }
-      if (s) break;
     }
     ss += s * f.soft_weights[i];
   }
@@ -182,14 +191,13 @@ int main(int argc, char **argv) {
   float alpha = 0.1, beta = 1.0, sp = 0.001, hard_prob = 0.99;
   int restart_thresh = 100;
   int restart_flip = 5;
-  int nBlocks = 1;
-  int nThreads = -1;
   int hard_inc = 100;
   std::string filename = "";
   int c = 0;
   int option_index = 0;
 
-  while ((c = getopt_long(argc, argv, "hn:", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, argv, "hn:", long_options, &option_index)) !=
+         -1) {
     switch (c) {
       case 0:
         if (std::string(long_options[option_index].name) == "alpha") {
@@ -290,20 +298,22 @@ int main(int argc, char **argv) {
     }
   }
 
+  f.model = new unsigned[(f.nVars + 1) * nBlocks];
+
   f.model[0] = 0;
 
   sl.decimation_only(init_solution, argv[1]);
-  sl.print_best_solution();
+  // sl.print_best_solution();
 
   // if (f.hard_clauses.size() > 1) find_initial_model(f);
 
-  std::vector<int> model(f.nVars + 1, 1);
-  for (int i = 0; i < f.nVars; i++) {
-    model[i+1] = sl.best_soln[i+1];
+  std::vector<unsigned> model(f.nVars + 1, 1);
+  for (unsigned i = 0; i < f.nVars; i++) {
+    model[i + 1] = sl.best_soln[i + 1];
   }
   unsigned sat = find_soft_sat(f, model);
   std::cout << "o sat " << sat << std::endl;
-  for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
+  for (unsigned v = 1; v <= f.nVars; v++) f.model[v] = model[v];
   sl.free_memory();
 
   size_t avail, tot;
@@ -316,7 +326,7 @@ int main(int argc, char **argv) {
 
   std::cout << "c Using " << nThreads << " threads" << std::endl;
 
-  alloc_formuala_d(f, f_d, nThreads);
+  alloc_formula_d(f, f_d, nThreads, nBlocks);
 
   curandState_t *d_state;
   cudaMalloc(&d_state, nBlocks * nThreads * sizeof(curandState_t));
@@ -331,15 +341,15 @@ int main(int argc, char **argv) {
       restart_thresh, restart_flip, d_state);
   gpuErrchk(cudaPeekAtLastError());
 
-  cudaMemcpyAsync(f.model, f_d.best_model, (f.nVars + 1) * sizeof(int),
+  cudaMemcpyAsync(f.model, f_d.best_model,
+                  (f.nVars + 1) * sizeof(unsigned) * nBlocks,
                   cudaMemcpyDeviceToHost, s);
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 
-  print_model(std::cout, f);
+  print_model(std::cout, f, nBlocks);
 
-  free_formula_d(f_d);
-  free_formula(f);
+  free_formula_d(f, f_d);
   cudaFree(d_state);
 
   return 0;

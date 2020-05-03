@@ -2,6 +2,7 @@
 #define SEARCH_ALGS_H
 
 #include <curand_kernel.h>
+
 #include "maxsat.h"
 
 __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
