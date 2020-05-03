@@ -413,14 +413,6 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
 
     if (curr_hard_sat > best_hard_sat ||
         (curr_hard_sat == best_hard_sat && curr_soft_sat > best_soft_sat)) {
-      if (index == 0) {
-        best_hard_sat = curr_hard_sat;
-        best_soft_sat = curr_soft_sat;
-        printf("c Block %d: Updated best model(%d, %d) at %d\n", BLK_INDEX,
-               best_hard_sat, best_soft_sat, iter);
-        soft_max += soft_max_delta;
-      }
-
       if (BEST_MODEL_FLAG) {
         for (unsigned i = index + 1; i <= f_d.nVars; i += BLK_DIMEN) {
           BEST_MODEL_AT_0(i) = MODEL_AT(i);
@@ -431,10 +423,13 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
         }
       }
 
-      __syncthreads();
-
       if (index == 0) {
         atomicXor(&BEST_MODEL_FLAG, 1);
+        best_hard_sat = curr_hard_sat;
+        best_soft_sat = curr_soft_sat;
+        printf("c Block %d: Updated best model(%d, %d) at %d\n", BLK_INDEX,
+               best_hard_sat, best_soft_sat, iter);
+        soft_max += soft_max_delta;
       }
     }
 
