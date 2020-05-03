@@ -74,17 +74,6 @@ __device__ void update_hard_scores(MaxSATFormula_d &f_d) {
         sat = 1;
         break;
       }
-      // if (lit > 0) {
-      //   if (MODEL_AT(lit) == 1) {
-      //     sat = 1;
-      //     break;
-      //   }
-      // } else {
-      //   if (MODEL_AT(-lit) == 0) {
-      //     sat = 1;
-      //     break;
-      //   }
-      // }
     }
     HARD_SCORES_AT(hard_index) = sat;
   }
@@ -103,17 +92,6 @@ __device__ void update_soft_scores(MaxSATFormula_d &f_d) {
         sat = f_d.soft_weights_orig[soft_index];
         break;
       }
-      // if (lit > 0) {
-      //   if (MODEL_AT(lit) == 1) {
-      //     sat = f_d.soft_weights_orig[soft_index];
-      //     break;
-      //   }
-      // } else {
-      //   if (MODEL_AT(-lit) == 0) {
-      //     sat = f_d.soft_weights_orig[soft_index];
-      //     break;
-      //   }
-      // }
     }
     SOFT_SCORES_AT(soft_index) = sat;
   }
@@ -141,10 +119,6 @@ __device__ unsigned choose_var_hard(MaxSATFormula_d &f_d,
       (f_d.hard_clauses[hard_index + 1] - f_d.hard_clauses[hard_index]);
   unsigned lit = f_d.hard_clauses_lits[lit_index];
   return VAR_OF_LIT(lit);
-  // if (lit < 0) {
-  //   return -lit;
-  // }
-  // return lit;
 }
 
 __device__ unsigned choose_var_soft(MaxSATFormula_d &f_d,
@@ -169,10 +143,6 @@ __device__ unsigned choose_var_soft(MaxSATFormula_d &f_d,
       (f_d.soft_clauses[soft_index + 1] - f_d.soft_clauses[soft_index]);
   unsigned lit = f_d.soft_clauses_lits[lit_index];
   return VAR_OF_LIT(lit);
-  // if (lit < 0) {
-  //   return -lit;
-  // }
-  // return lit;
 }
 
 __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
@@ -264,29 +234,6 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d,
   }
 }
 
-__device__ void print_final(int index, MaxSATFormula_d &f_d,
-                            unsigned &curr_hard_sat, unsigned &curr_soft_sat,
-                            unsigned &best_hard_sat, unsigned &best_soft_sat) {
-  if (THR_INDEX == 0 && BLK_INDEX == 0) {
-    printf("c Last: %d %d at %d\n", curr_hard_sat, curr_soft_sat, MODEL_AT(0));
-
-    // printf("v");
-    // for (int i = 1; i <= f_d.nVars; i++) {
-    //   printf(" %d", MODEL_AT(i) > 0 ? i : -i);
-    // }
-    // printf("\n");
-
-    printf("c Best: %d %d at %d\n", best_hard_sat, best_soft_sat,
-           BEST_MODEL_AT(0));
-
-    // printf("b");
-    // for (int i = 1; i <= f_d.nVars; i++) {
-    //   printf(" %d", BEST_MODEL_AT(i) > 0 ? i : -i);
-    // }
-    // printf("\n");
-  }
-}
-
 __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
                            float alpha, float beta, float sp,
                            float flip_hard_prob, int hard_inc, int n_iters,
@@ -365,27 +312,13 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
         for (unsigned i = f_d.hard_clauses[hard_index];
              i < f_d.hard_clauses[hard_index + 1]; ++i) {
           unsigned lit = f_d.hard_clauses_lits[i];
-          if (VAR_OF_LIT(lit) == v) lit = NEG_LIT(lit);
           // Simulate var flip
-          // if (lit == v || -lit == v) lit = -lit;
+          if (VAR_OF_LIT(lit) == v) lit = NEG_LIT(lit);
           if (IS_LIT_SAT(lit)) {
             sat_hard_sum += HARD_WEIGHTS_AT(hard_index);
             sat_hard_sum_orig++;
             break;
           }
-          // if (lit > 0) {
-          //   if (MODEL_AT(lit) == 1) {
-          //     sat_hard_sum += HARD_WEIGHTS_AT(hard_index);
-          //     sat_hard_sum_orig++;
-          //     break;
-          //   }
-          // } else {
-          //   if (MODEL_AT(-lit) == 0) {
-          //     sat_hard_sum += HARD_WEIGHTS_AT(hard_index);
-          //     sat_hard_sum_orig++;
-          //     break;
-          //   }
-          // }
         }
       }
 
@@ -394,27 +327,13 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
         for (unsigned i = f_d.soft_clauses[soft_index];
              i < f_d.soft_clauses[soft_index + 1]; ++i) {
           unsigned lit = f_d.soft_clauses_lits[i];
-          if (VAR_OF_LIT(lit) == v) lit = NEG_LIT(lit);
           // Simulate var flip
-          // if (lit == v || -lit == v) lit = -lit;
+          if (VAR_OF_LIT(lit) == v) lit = NEG_LIT(lit);
           if (IS_LIT_SAT(lit)) {
             sat_soft_sum += SOFT_WEIGHTS_AT(soft_index);
             sat_soft_sum_orig += f_d.soft_weights_orig[soft_index];
             break;
           }
-          // if (lit > 0) {
-          //   if (MODEL_AT(lit) == 1) {
-          //     sat_soft_sum += SOFT_WEIGHTS_AT(soft_index);
-          //     sat_soft_sum_orig += f_d.soft_weights_orig[soft_index];
-          //     break;
-          //   }
-          // } else {
-          //   if (MODEL_AT(-lit) == 0) {
-          //     sat_soft_sum += SOFT_WEIGHTS_AT(soft_index);
-          //     sat_soft_sum_orig += f_d.soft_weights_orig[soft_index];
-          //     break;
-          //   }
-          // }
         }
       }
 
@@ -502,8 +421,4 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
 
     __syncthreads();
   }
-
-  __syncthreads();
-  print_final(index, f_d, curr_hard_sat, curr_soft_sat, best_hard_sat,
-              best_soft_sat);
 }

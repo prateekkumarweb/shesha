@@ -177,12 +177,6 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
           s = 1;
           break;
         }
-        // if (l > 0) {
-        //   if (MODEL(b, l) == 1) s = 1;
-        // } else {
-        //   if (MODEL(b, -l) == 0) s = 1;
-        // }
-        // if (s) break;
       }
       ss += s;
     }
@@ -197,12 +191,6 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
           s = 1;
           break;
         }
-        // if (l > 0) {
-        //   if (MODEL(b, l) == 1) s = 1;
-        // } else {
-        //   if (MODEL(b, -l) == 0) s = 1;
-        // }
-        // if (s) break;
       }
       ss += s * f.soft_weights[i];
     }
