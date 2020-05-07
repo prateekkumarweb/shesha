@@ -80,7 +80,7 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
 }
 
 void alloc_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads,
-                     unsigned nBlocks) {
+                     unsigned nBlocks, std::vector<unsigned> &model) {
   f_d.nVars = f.nVars;
   f_d.nClauses = f.nClauses;
   f_d.nHardLits = f.hard_clauses_lits.size();
@@ -120,17 +120,16 @@ void alloc_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads,
   cudaMalloc(&f_d.var_hard_orig, (f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
   cudaMalloc(&f_d.var_soft_orig, (f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
 
-  cudaMalloc(&f_d.best_model, (f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
+  cudaMalloc(&f_d.best_model, (2 * f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
 
-  cudaMemcpy(f_d.model, f.model, (f_d.nVars + 1) * sizeof(unsigned) * nBlocks,
+  cudaMemcpy(f_d.model, model.data(), (f_d.nVars + 1) * sizeof(unsigned),
              cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.best_model, f.model,
-             (f_d.nVars + 1) * sizeof(unsigned) * nBlocks,
+  cudaMemcpy(f_d.best_model, model.data(), (f_d.nVars + 1) * sizeof(unsigned),
              cudaMemcpyHostToDevice);
 }
 
 void free_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
-  delete[] f.model;
+  delete[] f.best_model;
 
   cudaFree(f_d.hard_clauses_lits);
   cudaFree(f_d.soft_clauses_lits);
@@ -152,28 +151,26 @@ void free_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
 }
 
 void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
-  unsigned tot = 0;
-  for (auto i : f.soft_weights) {
-    tot += i;
-  }
   std::cout << "c Original Hard: " << f.hard_clauses.size() - 1
-            << " Soft: " << tot << std::endl;
+            << " Soft: " << f.sum_soft_weights << std::endl;
 
   unsigned *hard_ss = new unsigned[nBlocks];
   unsigned *soft_ss = new unsigned[nBlocks];
   unsigned best_hard_ss = 0;
   unsigned best_soft_ss = 0;
   int best_block = -1;
+  int best_offset = 0;
 
-#define MODEL(b, i) f.model[i + (f.nVars + 1) * b]
+#define MODEL(b, i) f.best_model[i + (2 * f.nVars + 1) * b]
 
   for (unsigned b = 0; b < nBlocks; b++) {
     unsigned ss = 0;
+    unsigned offset = MODEL(b, 0) ? f.nVars : 0;
     for (unsigned i = 0; i < f.hard_clauses.size() - 1; i++) {
       unsigned s = 0;
       for (unsigned j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
         unsigned l = f.hard_clauses_lits[j];
-        if ((MODEL(b, (l >> 1)) ^ 1) == (l & 1)) {
+        if ((MODEL(b, (l >> 1) + offset) ^ 1) == (l & 1)) {
           s = 1;
           break;
         }
@@ -187,7 +184,7 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
       unsigned s = 0;
       for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
         unsigned l = f.soft_clauses_lits[j];
-        if ((MODEL(b, (l >> 1)) ^ 1) == (l & 1)) {
+        if ((MODEL(b, (l >> 1) + offset) ^ 1) == (l & 1)) {
           s = 1;
           break;
         }
@@ -196,15 +193,16 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
     }
     soft_ss[b] = ss;
 
-    std::cout << "c Block: " << b << " Last Updated Iter " << MODEL(b, 0)
+    std::cout << "c Block: " << b << " Last Updated Flag " << MODEL(b, 0)
               << std::endl;
     std::cout << "c Block: " << b << " Hard: " << hard_ss[b]
-              << " Soft: " << soft_ss[b] << " Cost: " << tot - soft_ss[b]
-              << std::endl;
+              << " Soft: " << soft_ss[b]
+              << " Cost: " << f.sum_soft_weights - soft_ss[b] << std::endl;
 
     if (best_block == -1 || hard_ss[b] > best_hard_ss ||
         (hard_ss[b] == best_hard_ss && soft_ss[b] > best_soft_ss)) {
       best_block = b;
+      best_offset = offset;
       best_hard_ss = hard_ss[b];
       best_soft_ss = soft_ss[b];
     }
@@ -212,14 +210,14 @@ void print_model(std::ostream &out, MaxSATFormula &f, unsigned nBlocks) {
 
   if (best_block != -1) {
     std::cout << "c Best Block: " << best_block << " Hard: " << best_hard_ss
-              << " Soft: " << best_soft_ss << " Cost: " << tot - best_soft_ss
-              << std::endl;
+              << " Soft: " << best_soft_ss
+              << " Cost: " << f.sum_soft_weights - best_soft_ss << std::endl;
     if (best_hard_ss + 1 == f.hard_clauses.size())
-      std::cout << "o " << tot - best_soft_ss << std::endl;
+      std::cout << "o " << f.sum_soft_weights - best_soft_ss << std::endl;
 
     out << 'v';
     for (unsigned i = 1; i <= f.nVars; ++i) {
-      out << (MODEL(best_block, i) == 1 ? " " : " -") << i;
+      out << (MODEL(best_block, i + best_offset) == 1 ? " " : " -") << i;
     }
     out << std::endl;
   }
