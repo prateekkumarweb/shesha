@@ -45,6 +45,7 @@ const struct option long_options[] = {
     {"sp", required_argument, 0, 0},
     {"hard_prob", required_argument, 0, 0},
     {"hard_inc", required_argument, 0, 0},
+    {"soft_max_delta", required_argument, 0, 0},
     {"iters", required_argument, 0, 'n'},
     {"restart_thresh", required_argument, 0, 0},
     {"restart_flip", required_argument, 0, 0},
@@ -59,6 +60,7 @@ const std::string option_desc[]{
     "smoothening probability",
     "probability of choosing hard clause when local opt is hit",
     "Increment to internal hard weight when a hard clause is unsatisfied",
+    "Delta to increase the maximum soft weight",
     "Number of iterations",
     "Number of iterations without improvement between two restarts",
     "Number of flips to make at restart",
@@ -205,6 +207,7 @@ int main(int argc, char **argv) {
   int restart_thresh = 100;
   int restart_flip = 5;
   int hard_inc = 100;
+  int soft_max_delta = 100;
   std::string filename = "";
   int c = 0;
   int option_index = 0;
@@ -233,6 +236,11 @@ int main(int argc, char **argv) {
         } else if (std::string(long_options[option_index].name) == "hard_inc") {
           if (optarg) {
             hard_inc = std::stoi(optarg);
+          }
+        } else if (std::string(long_options[option_index].name) ==
+                   "soft_max_delta") {
+          if (optarg) {
+            soft_max_delta = std::stoi(optarg);
           }
         } else if (std::string(long_options[option_index].name) ==
                    "restart_thresh") {
@@ -288,6 +296,7 @@ int main(int argc, char **argv) {
   std::cout << "c restart_thresh " << restart_thresh << std::endl;
   std::cout << "c restart_flip " << restart_flip << std::endl;
   std::cout << "c hard_inc " << hard_inc << std::endl;
+  std::cout << "c soft_max_delta " << soft_max_delta << std::endl;
   std::cout << "c nBlocks " << nBlocks << std::endl;
   std::cout << "c nThreads " << nThreads << std::endl;
 
@@ -347,7 +356,7 @@ int main(int argc, char **argv) {
   start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
   gpuErrchk(cudaPeekAtLastError());
   search_alg<<<nBlocks, nThreads, 0, s>>>(
-      f_d, f.sum_soft_weights, alpha, beta, sp, hard_prob, hard_inc, opt_iters,
+      f_d, soft_max_delta, alpha, beta, sp, hard_prob, hard_inc, opt_iters,
       restart_thresh, restart_flip, d_state);
   gpuErrchk(cudaPeekAtLastError());
 

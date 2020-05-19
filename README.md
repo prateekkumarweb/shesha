@@ -5,7 +5,7 @@ Shesha is an incomplete MaxSAT solver for GPU.
 ## Compile and Run with decimation
 
 ```sh
-nvcc src/* -I include --std=c++11 -o shesha
+nvcc src/* -I include --std=c++11 -O3 -o shesha
 ```
 
 ### Run
