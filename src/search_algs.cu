@@ -276,7 +276,8 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     soft_max = 1;
   }
 
-  if (BLK_INDEX != 0) get_random_model(f_d, state, true);
+  // if (BLK_INDEX != 0)
+  get_random_model(f_d, state, true);
 
   __syncthreads();
 
