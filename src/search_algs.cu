@@ -71,7 +71,7 @@ __device__ void update_hard_scores(MaxSATFormula_d &f_d) {
   for (int hard_index = index; hard_index < f_d.nHardClauses;
        hard_index += BLK_DIMEN) {
     HARD_WEIGHTS_AT(hard_index) = 1;
-    unsigned sat = 0;
+    weight_t sat = 0;
     for (unsigned i = f_d.hard_clauses[hard_index];
          i < f_d.hard_clauses[hard_index + 1]; ++i) {
       unsigned lit = f_d.hard_clauses_lits[i];
@@ -89,7 +89,7 @@ __device__ void update_soft_scores(MaxSATFormula_d &f_d) {
   for (int soft_index = index; soft_index < f_d.nSoftClauses;
        soft_index += BLK_DIMEN) {
     SOFT_WEIGHTS_AT(soft_index) = f_d.soft_weights_orig[soft_index];
-    unsigned sat = 0;
+    weight_t sat = 0;
     for (unsigned i = f_d.soft_clauses[soft_index];
          i < f_d.soft_clauses[soft_index + 1]; ++i) {
       unsigned lit = f_d.soft_clauses_lits[i];
@@ -196,9 +196,9 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
 }
 
 __device__ void compute_total_hard_score(MaxSATFormula_d &f_d,
-                                         unsigned &curr_hard_sat,
-                                         unsigned &hard_score) {
-  unsigned score = 0;
+                                         weight_t &curr_hard_sat,
+                                         weight_t &hard_score) {
+  weight_t score = 0;
   int index = THR_INDEX;
   for (int i = index; i < f_d.nHardClauses; i += BLK_DIMEN) {
     score += HARD_SCORES_AT(i);
@@ -218,9 +218,9 @@ __device__ void compute_total_hard_score(MaxSATFormula_d &f_d,
 }
 
 __device__ void compute_total_soft_score(MaxSATFormula_d &f_d,
-                                         unsigned &curr_soft_sat,
-                                         unsigned &soft_score) {
-  unsigned score = 0;
+                                         weight_t &curr_soft_sat,
+                                         weight_t &soft_score) {
+  weight_t score = 0;
   int index = THR_INDEX;
   for (int i = index; i < f_d.nSoftClauses; i += BLK_DIMEN) {
     score += SOFT_SCORES_AT(i);
@@ -239,7 +239,7 @@ __device__ void compute_total_soft_score(MaxSATFormula_d &f_d,
   }
 }
 
-__global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
+__global__ void search_alg(MaxSATFormula_d f_d, weight_t soft_max_delta,
                            float alpha, float beta, float sp,
                            float flip_hard_prob, int hard_inc, int n_iters,
                            int restart_threshold, int restart_flip,
@@ -248,13 +248,13 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
 
   bool first_thread = (index == 0);
 
-  __shared__ unsigned best_hard_sat;
-  __shared__ unsigned curr_hard_sat;
-  __shared__ unsigned best_soft_sat;
-  __shared__ unsigned curr_soft_sat;
+  __shared__ weight_t best_hard_sat;
+  __shared__ weight_t curr_hard_sat;
+  __shared__ weight_t best_soft_sat;
+  __shared__ weight_t curr_soft_sat;
 
-  __shared__ unsigned total_hard_scores;
-  __shared__ unsigned total_soft_scores;
+  __shared__ weight_t total_hard_scores;
+  __shared__ weight_t total_soft_scores;
   __shared__ float prev_score;
   __shared__ int not_improved;
 
@@ -263,7 +263,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
 
   __shared__ unsigned max_v;
   __shared__ unsigned chosen_v;
-  __shared__ unsigned soft_max;
+  __shared__ weight_t soft_max;
 
   if (first_thread) {
     best_hard_sat = curr_hard_sat = best_soft_sat = curr_soft_sat = 0;
@@ -295,7 +295,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     best_soft_sat = curr_soft_sat;
     not_improved = 0;
 
-    printf("c Block %d: Initial Hard: %d Soft: %d Flag: %d\n", BLK_INDEX,
+    printf("c Block %d: Initial Hard: %ld Soft: %ld Flag: %d\n", BLK_INDEX,
            best_hard_sat, best_soft_sat, BEST_MODEL_FLAG);
   }
 
@@ -311,10 +311,10 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
     }
 
     for (unsigned v = index + 1; v <= f_d.nVars; v += BLK_DIMEN) {
-      unsigned sat_hard_sum = 0;
-      unsigned sat_soft_sum = 0;
-      unsigned sat_hard_sum_orig = 0;
-      unsigned sat_soft_sum_orig = 0;
+      weight_t sat_hard_sum = 0;
+      weight_t sat_soft_sum = 0;
+      weight_t sat_hard_sum_orig = 0;
+      weight_t sat_soft_sum_orig = 0;
 
       for (unsigned hard_index = 0; hard_index < f_d.nHardClauses;
            hard_index++) {
@@ -428,7 +428,7 @@ __global__ void search_alg(MaxSATFormula_d f_d, unsigned soft_max_delta,
         atomicXor(&BEST_MODEL_FLAG, 1);
         best_hard_sat = curr_hard_sat;
         best_soft_sat = curr_soft_sat;
-        printf("c Block %d: Updated best model(%d, %d) at %d\n", BLK_INDEX,
+        printf("c Block %d: Updated best model(%ld, %ld) at %d\n", BLK_INDEX,
                best_hard_sat, best_soft_sat, iter);
         soft_max += soft_max_delta;
       }

@@ -20,6 +20,7 @@
 // #include "core/Solver.h"
 // #include "core/SolverTypes.h"
 #include "basis_pms.h"
+#include "maxsat.h"
 #include "pms.h"
 
 // using namespace Glucose;
@@ -106,7 +107,7 @@ void sigint_handler(int sig) {
   }
   if (sig == SIGINT || sig == SIGTERM) {
     call++;
-    std::cout << "c Exiting ..." << std::endl;
+    printf("c Exiting ...\n");
     cudaStream_t s;
     cudaStreamCreate(&s);
     cudaMemcpyAsync(f.best_model, f_d.best_model,
@@ -114,13 +115,13 @@ void sigint_handler(int sig) {
                     cudaMemcpyDeviceToHost, s);
     cudaStreamDestroy(s);
 
-    print_model(std::cout, f, nBlocks);
+    print_model(f, nBlocks);
     exit(1);
   }
 }
 
 void print_deci_stats(MaxSATFormula &f, const std::vector<unsigned> &model) {
-  unsigned ss = 0;
+  weight_t hard_ss = 0;
   for (unsigned i = 0; i < f.hard_clauses.size() - 1; i++) {
     unsigned s = 0;
     for (unsigned j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
@@ -130,10 +131,9 @@ void print_deci_stats(MaxSATFormula &f, const std::vector<unsigned> &model) {
         break;
       }
     }
-    ss += s;
+    hard_ss += s;
   }
-  printf("c Deci Hard: %d ", ss);
-  ss = 0;
+  weight_t soft_ss = 0;
   for (unsigned i = 0; i < f.soft_clauses.size() - 1; i++) {
     unsigned s = 0;
     for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
@@ -143,58 +143,14 @@ void print_deci_stats(MaxSATFormula &f, const std::vector<unsigned> &model) {
         break;
       }
     }
-    ss += s * f.soft_weights[i];
+    soft_ss += s * f.soft_weights[i];
   }
-  printf("Soft: %d Cost: %d\n", ss, f.sum_soft_weights - ss);
+  printf("c Deci Hard: %ld Soft: %ld Cost: %ld\n", hard_ss, soft_ss,
+         f.sum_soft_weights - soft_ss);
+  if (hard_ss + 1 == f.hard_clauses.size()) {
+    printf("o %ld\n", f.sum_soft_weights - soft_ss);
+  }
 }
-
-// void find_initial_model(MaxSATFormula &f, unsigned nModels = 3) {
-//   // TODO
-//   Solver solver;
-//   std::vector<Var> solver_vars;
-//   solver_vars.push_back(0);
-//   while (f.nVars >= solver.nVars()) solver.newVar();
-//   for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
-//     vec<Lit> lits;
-//     for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
-//       int lit = f.hard_clauses_lits[j];
-//       int var = abs(lit) - 1;
-//       lits.push((lit > 0) ? mkLit(var) : ~mkLit(var));
-//     }
-//     solver.addClause(lits);
-//   }
-//   vec<Lit> assumps;
-//   unsigned best_sat = 0;
-//   for (unsigned k = 0; k < nModels; k++) {
-//     bool solved = solver.solve(assumps);
-//     std::vector<int> model(f.nVars + 1, 1);
-//     if (solved) {
-//       for (int i = 0; i < f.nVars; i++) {
-//         if (solver.model[i] == l_True)
-//           model[i + 1] = 1;
-//         else
-//           model[i + 1] = 0;
-//       }
-//       unsigned sat = find_soft_sat(f, model);
-//       if (sat > best_sat) {
-//         for (int v = 1; v <= f.nVars; v++) f.model[v] = model[v];
-//         best_sat = sat;
-//       }
-//       vec<Lit> c1;
-//       for (int i = 1; i <= f.nVars; i++) {
-//         c1.push((model[i] == 0) ? mkLit(i) : ~mkLit(i));
-//       }
-//       solver.addClause(c1);
-//     } else {
-//       break;
-//     }
-//   }
-
-//   if (best_sat != 0) {
-//     std::cout << "c Glucose initial cost: " << f.sum_soft_weights - best_sat
-//               << std::endl;
-//   }
-// }
 
 __global__ void start_kernel(curandState_t *state) {
   int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -335,15 +291,15 @@ int main(int argc, char **argv) {
   print_deci_stats(f, model);
   sl.free_memory();
 
-  size_t avail, tot;
-  cudaMemGetInfo(&avail, &tot);
-  std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
+  // size_t avail, tot;
+  // cudaMemGetInfo(&avail, &tot);
+  // std::cout << "c Avail: " << avail << " Tot: " << tot << std::endl;
 
   if (nThreads == -1) {
     nThreads = std::min(((f.nVars + 31) / 32) * 32, 1024u);
   }
 
-  std::cout << "c Using " << nThreads << " threads" << std::endl;
+  printf("c Using %d threads\n", nThreads);
 
   alloc_formula_d(f, f_d, nThreads, nBlocks, model);
 
@@ -366,7 +322,7 @@ int main(int argc, char **argv) {
   cudaStreamSynchronize(s);
   cudaStreamDestroy(s);
 
-  print_model(std::cout, f, nBlocks);
+  print_model(f, nBlocks);
 
   free_formula_d(f, f_d);
   cudaFree(d_state);
