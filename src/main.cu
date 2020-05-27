@@ -17,13 +17,13 @@
 #include <string>
 #include <vector>
 
-// #include "core/Solver.h"
-// #include "core/SolverTypes.h"
 #include "basis_pms.h"
+#include "core/Solver.h"
+#include "core/SolverTypes.h"
 #include "maxsat.h"
 #include "pms.h"
 
-// using namespace Glucose;
+using namespace Glucose;
 
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
@@ -52,6 +52,7 @@ const struct option long_options[] = {
     {"restart_flip", required_argument, 0, 0},
     {"nblocks", required_argument, 0, 0},
     {"nthreads", required_argument, 0, 0},
+    {"try-gluc", required_argument, 0, 'g'},
     {0, 0, 0, 0}};
 
 const std::string option_desc[]{
@@ -67,6 +68,7 @@ const std::string option_desc[]{
     "Number of flips to make at restart",
     "Number of blocks to use",
     "Number of threads per block to use",
+    "Use glucose if hard clauses are present",
     ""};
 
 void display_help(std::string exec) {
@@ -152,6 +154,105 @@ void print_deci_stats(MaxSATFormula &f, const std::vector<unsigned> &model) {
   }
 }
 
+void print_glucose_stats(MaxSATFormula &f, const std::vector<unsigned> &model) {
+  weight_t hard_ss = 0;
+  for (unsigned i = 0; i < f.hard_clauses.size() - 1; i++) {
+    unsigned s = 0;
+    for (unsigned j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
+      unsigned l = f.hard_clauses_lits[j];
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
+      }
+    }
+    hard_ss += s;
+  }
+  weight_t soft_ss = 0;
+  for (unsigned i = 0; i < f.soft_clauses.size() - 1; i++) {
+    unsigned s = 0;
+    for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
+      unsigned l = f.soft_clauses_lits[j];
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
+      }
+    }
+    soft_ss += s * f.soft_weights[i];
+  }
+  printf("c Glucose Hard: %ld Soft: %ld Cost: %ld\n", hard_ss, soft_ss,
+         f.sum_soft_weights - soft_ss);
+  if (hard_ss + 1 == f.hard_clauses.size()) {
+    printf("o %ld\n", f.sum_soft_weights - soft_ss);
+  }
+}
+
+weight_t find_soft_sat(MaxSATFormula &f, const std::vector<unsigned> &model) {
+  weight_t soft_ss = 0;
+  for (unsigned i = 0; i < f.soft_clauses.size() - 1; i++) {
+    unsigned s = 0;
+    for (unsigned j = f.soft_clauses[i]; j < f.soft_clauses[i + 1]; j++) {
+      unsigned l = f.soft_clauses_lits[j];
+      if ((model[l >> 1] ^ 1) == (l & 1)) {
+        s = 1;
+        break;
+      }
+    }
+    soft_ss += s * f.soft_weights[i];
+  }
+  printf("c Gluc Soft: %ld Cost: %ld\n", soft_ss, f.sum_soft_weights - soft_ss);
+  return soft_ss;
+}
+
+std::vector<unsigned> find_initial_model_glucose(MaxSATFormula &f,
+                                                 unsigned nModels) {
+  Solver solver;
+  std::vector<Var> solver_vars;
+  while (f.nVars > solver.nVars()) solver.newVar();
+  for (int i = 0; i < f.hard_clauses.size() - 1; i++) {
+    vec<Lit> lits;
+    for (int j = f.hard_clauses[i]; j < f.hard_clauses[i + 1]; j++) {
+      int lit = f.hard_clauses_lits[j];
+      int var = (lit >> 1) - 1;
+      lits.push((lit & 1) ? mkLit(var, true) : mkLit(var));
+    }
+    solver.addClause(lits);
+  }
+  vec<Lit> assumps;
+  weight_t best_sat = 0;
+  std::vector<unsigned> best_model(f.nVars + 1, 1);
+  for (unsigned k = 0; k < nModels; k++) {
+    bool solved = solver.solve(assumps);
+    std::vector<unsigned> model(f.nVars + 1, 1);
+    if (solved) {
+      for (unsigned i = 0; i < f.nVars; i++) {
+        if (solver.model[i] == l_True)
+          model[i + 1] = 1;
+        else
+          model[i + 1] = 0;
+      }
+      weight_t sat = find_soft_sat(f, model);
+      if (sat > best_sat) {
+        for (unsigned v = 1; v <= f.nVars; v++) best_model[v] = model[v];
+        best_sat = sat;
+      }
+      vec<Lit> c1;
+      for (unsigned i = 1; i <= f.nVars; i++) {
+        c1.push((model[i] == 0) ? mkLit(i - 1) : ~mkLit(i - 1));
+      }
+      solver.addClause(c1);
+    } else {
+      break;
+    }
+  }
+
+  if (best_sat != 0) {
+    return best_model;
+  } else {
+    std::vector<unsigned> model;
+    return model;
+  }
+}
+
 __global__ void start_kernel(curandState_t *state) {
   int idx = threadIdx.x + blockDim.x * blockIdx.x;
   curand_init(9876543210l, idx, 0, &state[idx]);
@@ -167,8 +268,9 @@ int main(int argc, char **argv) {
   std::string filename = "";
   int c = 0;
   int option_index = 0;
+  int try_gluc = 0;
 
-  while ((c = getopt_long(argc, argv, "hn:", long_options, &option_index)) !=
+  while ((c = getopt_long(argc, argv, "hn:g:", long_options, &option_index)) !=
          -1) {
     switch (c) {
       case 0:
@@ -230,6 +332,10 @@ int main(int argc, char **argv) {
         opt_iters = std::stoi(optarg);
         break;
 
+      case 'g':
+        try_gluc = std::stoi(optarg);
+        break;
+
       default:
         display_error("Unrecognised argument: " + std::to_string(c));
     }
@@ -278,17 +384,23 @@ int main(int argc, char **argv) {
 
   f.best_model = new unsigned[(2 * f.nVars + 1) * nBlocks];
 
-  sl.decimation_only(init_solution, argv[1]);
-  // sl.print_best_solution();
-
-  // if (f.hard_clauses.size() > 1) find_initial_model(f);
-
   std::vector<unsigned> model(f.nVars + 1, 1);
-  model[0] = 0;
-  for (unsigned i = 1; i <= f.nVars; i++) {
-    model[i] = sl.best_soln[i];
+  if (try_gluc != 0 && f.hard_clauses.size() > 1) {
+    model = find_initial_model_glucose(f, try_gluc);
+    if (model.size() > 0) {
+      print_glucose_stats(f, model);
+    } else {
+      printf("c Hard clauses unsat");
+      return 0;
+    }
+  } else {
+    sl.decimation_only(init_solution, argv[1]);
+    model[0] = 0;
+    for (unsigned i = 1; i <= f.nVars; i++) {
+      model[i] = sl.best_soln[i];
+    }
+    print_deci_stats(f, model);
   }
-  print_deci_stats(f, model);
   sl.free_memory();
 
   // size_t avail, tot;
