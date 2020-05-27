@@ -1,7 +1,8 @@
 #if !defined(MAXSAT_H)
 #define MAXSAT_H
 
-#define weight_t unsigned long
+#include <cstdint>
+#define weight_t uint64_t
 
 #include <vector>
 
