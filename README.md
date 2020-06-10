@@ -2,19 +2,7 @@
 
 Shesha is an incomplete MaxSAT solver for GPU.
 
-## Compile and Run with decimation
-
-```sh
-nvcc src/* -I include --std=c++11 -O3 -o shesha
-```
-
-### Run
-
-```sh
-./shesha file.cnf
-```
-
-## Old readme
+## Compile and Run
 
 ### Build
 
@@ -31,7 +19,7 @@ To compile shesha
 ```sh
 $ mkdir build
 $ cd build
-$ cmake ..
+$ cmake -DCMAKE_BUILD_TYPE=Release ..
 $ make
 $ cd ..
 ```
