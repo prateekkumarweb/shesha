@@ -413,7 +413,15 @@ int main(int argc, char **argv) {
 
   printf("c Using %d threads\n", nThreads);
 
-  alloc_formula_d(f, f_d, nThreads, nBlocks, model);
+  std::vector<unsigned> model_duplicates((f.nVars+1)*nBlocks);
+  auto dest_sit = model_duplicates.begin();
+  auto dest_eit = model_duplicates.end();
+  while (dest_sit!=dest_eit)
+  {
+     dest_sit = std::copy(model.begin(),model.end(),dest_sit);
+}
+
+  alloc_formula_d(f, f_d, nThreads, nBlocks, model_duplicates);
 
   curandState_t *d_state;
   cudaMalloc(&d_state, nBlocks * nThreads * sizeof(curandState_t));

@@ -122,7 +122,7 @@ void alloc_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads,
 
   cudaMalloc(&f_d.best_model, (2 * f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
 
-  cudaMemcpy(f_d.model, model.data(), (f_d.nVars + 1) * sizeof(unsigned),
+  cudaMemcpy(f_d.model, model.data(), (f_d.nVars + 1) * sizeof(unsigned) * nBlocks,
              cudaMemcpyHostToDevice);
   cudaMemcpy(f_d.best_model, model.data(), (f_d.nVars + 1) * sizeof(unsigned),
              cudaMemcpyHostToDevice);
