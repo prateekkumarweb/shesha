@@ -155,10 +155,11 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
                              curandState_t *state) {
   unsigned max_v = 1;
   unsigned chosen_v = 1;
+  unsigned blkid_offset1 = BLK_INDEX+1;
   int index = THR_INDEX;
   for (int i = index + 1; i <= f_d.nVars; i += BLK_DIMEN) {
     float p = VAR_SCORES_AT(i) / (VAR_SCORES_AT(chosen_v) + VAR_SCORES_AT(i));
-    p = (p<0.5)? (p/2): ((1+p)/2);
+    p = (p<0.5)? (p/(blkid_offset1)): ((BLK_INDEX+p)/(blkid_offset1));
     float randf = curand_uniform(&state[TOT_INDEX]);
     if (VAR_SCORES_AT(i) > prev_score &&
          ((VAR_SCORES_AT(chosen_v) <= prev_score) ||
