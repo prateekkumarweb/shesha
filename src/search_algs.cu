@@ -179,10 +179,11 @@ __device__ void find_max_var(MaxSATFormula_d &f_d, unsigned &res_max_v,
     if (index < size) {
       float p = VAR_SCORES_AT(cr[size + index]) /
                 (VAR_SCORES_AT(cr[size + index]) + VAR_SCORES_AT(cr[index]));
+    p = (p<0.5)? (p/(blkid_offset1)): ((BLK_INDEX+p)/(blkid_offset1));
       float randf = curand_uniform(&state[TOT_INDEX]);
-      if ((VAR_SCORES_AT(cr[size + index]) > prev_score &&
-           VAR_SCORES_AT(cr[index]) <= prev_score) ||
-          (randf <= p)) {
+      if ((VAR_SCORES_AT(cr[size + index]) > prev_score) &&
+           (VAR_SCORES_AT(cr[index]) <= prev_score ||
+          (randf <= p))) {
         cr[index] = cr[index + size];
       }
       if (VAR_SCORES_AT(r[size + index]) > VAR_SCORES_AT(r[index])) {
