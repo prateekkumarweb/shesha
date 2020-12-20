@@ -97,7 +97,9 @@ void display_error(std::string err) {
 }
 
 MaxSATFormula f;
+MaxSATFormulaConstant_d fconst_d;
 MaxSATFormula_d f_d;
+FormulaMetadata fmd;
 
 int nBlocks = 1;
 int nThreads = -1;
@@ -421,7 +423,7 @@ int main(int argc, char **argv) {
      dest_sit = std::copy(model.begin(),model.end(),dest_sit);
 }
 
-  alloc_formula_d(f, f_d, nThreads, nBlocks, model_duplicates);
+  alloc_formula_d(f, fconst_d, f_d, fmd, nThreads, nBlocks, model_duplicates);
 
   curandState_t *d_state;
   cudaMalloc(&d_state, nBlocks * nThreads * sizeof(curandState_t));
@@ -429,10 +431,10 @@ int main(int argc, char **argv) {
   cudaStream_t s;
   cudaStreamCreate(&s);
 
-  start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
-  gpuErrchk(cudaPeekAtLastError());
+  // start_kernel<<<nBlocks, nThreads, 0, s>>>(d_state);
+  // gpuErrchk(cudaPeekAtLastError());
   search_alg<<<nBlocks, nThreads, 0, s>>>(
-      f_d, soft_max_delta, alpha, beta, sp, hard_prob, hard_inc, opt_iters,
+      f_d, fconst_d, fmd, soft_max_delta, alpha, beta, sp, hard_prob, hard_inc, opt_iters,
       restart_thresh, restart_flip, d_state);
   gpuErrchk(cudaPeekAtLastError());
 
@@ -444,7 +446,7 @@ int main(int argc, char **argv) {
 
   print_model(f, nBlocks);
 
-  free_formula_d(f, f_d);
+  free_formula_d(f, fconst_d, f_d);
   cudaFree(d_state);
 
   return 0;

@@ -79,63 +79,60 @@ bool parse_formula(std::istream &in, MaxSATFormula &f) {
   return true;
 }
 
-void alloc_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d, unsigned nThreads,
-                     unsigned nBlocks, std::vector<unsigned> &model) {
-  f_d.nVars = f.nVars;
-  f_d.nClauses = f.nClauses;
-  f_d.nHardLits = f.hard_clauses_lits.size();
-  f_d.nSoftLits = f.soft_clauses_lits.size();
-  f_d.nHardClauses = f.hard_clauses.size() - 1;
-  f_d.nSoftClauses = f.soft_clauses.size() - 1;
-  f_d.sum_soft_weights = f.sum_soft_weights;
+void alloc_formula_d(MaxSATFormula& f, MaxSATFormulaConstant_d& fconst_d, MaxSATFormula_d& f_d, FormulaMetadata& fmd, unsigned nThreads,
+  unsigned nBlocks, std::vector<unsigned>& model) {
+  fmd.nVars = f.nVars;
+  fmd.nClauses = f.nClauses;
+  fmd.nHardLits = f.hard_clauses_lits.size();
+  fmd.nSoftLits = f.soft_clauses_lits.size();
+  fmd.nHardClauses = f.hard_clauses.size() - 1;
+  fmd.nSoftClauses = f.soft_clauses.size() - 1;
+  fmd.sum_soft_weights = f.sum_soft_weights;
 
-  f_d.nThreads = nThreads;
-  f_d.nBlocks = nBlocks;
+  cudaMalloc(&fconst_d.hard_clauses_lits, fmd.nHardLits * sizeof(unsigned));
+  cudaMalloc(&fconst_d.soft_clauses_lits, fmd.nSoftLits * sizeof(unsigned));
+  cudaMalloc(&fconst_d.hard_clauses, (fmd.nHardClauses + 1) * sizeof(unsigned));
+  cudaMalloc(&fconst_d.soft_clauses, (fmd.nSoftClauses + 1) * sizeof(unsigned));
+  cudaMalloc(&fconst_d.soft_weights_orig, fmd.nSoftClauses * sizeof(weight_t));
 
-  cudaMalloc(&f_d.hard_clauses_lits, f_d.nHardLits * sizeof(unsigned));
-  cudaMalloc(&f_d.soft_clauses_lits, f_d.nSoftLits * sizeof(unsigned));
-  cudaMalloc(&f_d.hard_clauses, (f_d.nHardClauses + 1) * sizeof(unsigned));
-  cudaMalloc(&f_d.soft_clauses, (f_d.nSoftClauses + 1) * sizeof(unsigned));
-  cudaMalloc(&f_d.soft_weights_orig, f_d.nSoftClauses * sizeof(weight_t));
+  cudaMemcpy(fconst_d.hard_clauses_lits, f.hard_clauses_lits.data(),
+             fmd.nHardLits * sizeof(unsigned), cudaMemcpyHostToDevice);
+  cudaMemcpy(fconst_d.soft_clauses_lits, f.soft_clauses_lits.data(),
+             fmd.nSoftLits * sizeof(unsigned), cudaMemcpyHostToDevice);
+  cudaMemcpy(fconst_d.hard_clauses, f.hard_clauses.data(),
+             (fmd.nHardClauses + 1) * sizeof(unsigned), cudaMemcpyHostToDevice);
+  cudaMemcpy(fconst_d.soft_clauses, f.soft_clauses.data(),
+             (fmd.nSoftClauses + 1) * sizeof(unsigned), cudaMemcpyHostToDevice);
+  cudaMemcpy(fconst_d.soft_weights_orig, f.soft_weights.data(),
+             fmd.nSoftClauses * sizeof(weight_t), cudaMemcpyHostToDevice);
 
-  cudaMemcpy(f_d.hard_clauses_lits, f.hard_clauses_lits.data(),
-             f_d.nHardLits * sizeof(unsigned), cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.soft_clauses_lits, f.soft_clauses_lits.data(),
-             f_d.nSoftLits * sizeof(unsigned), cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.hard_clauses, f.hard_clauses.data(),
-             (f_d.nHardClauses + 1) * sizeof(unsigned), cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.soft_clauses, f.soft_clauses.data(),
-             (f_d.nSoftClauses + 1) * sizeof(unsigned), cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.soft_weights_orig, f.soft_weights.data(),
-             f_d.nSoftClauses * sizeof(weight_t), cudaMemcpyHostToDevice);
+  cudaMalloc(&f_d.hard_weights, fmd.nHardClauses * sizeof(weight_t) * nBlocks);
+  cudaMalloc(&f_d.soft_weights, fmd.nSoftClauses * sizeof(weight_t) * nBlocks);
 
-  cudaMalloc(&f_d.hard_weights, f_d.nHardClauses * sizeof(weight_t) * nBlocks);
-  cudaMalloc(&f_d.soft_weights, f_d.nSoftClauses * sizeof(weight_t) * nBlocks);
+  cudaMalloc(&f_d.model, (fmd.nVars + 1) * sizeof(unsigned) * nBlocks);
+  cudaMalloc(&f_d.hard_scores, fmd.nHardClauses * sizeof(weight_t) * nBlocks);
+  cudaMalloc(&f_d.soft_scores, fmd.nSoftClauses * sizeof(weight_t) * nBlocks);
 
-  cudaMalloc(&f_d.model, (f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
-  cudaMalloc(&f_d.hard_scores, f_d.nHardClauses * sizeof(weight_t) * nBlocks);
-  cudaMalloc(&f_d.soft_scores, f_d.nSoftClauses * sizeof(weight_t) * nBlocks);
+  cudaMalloc(&f_d.var_scores, (fmd.nVars + 1) * sizeof(float) * nBlocks);
+  cudaMalloc(&f_d.var_hard_orig, (fmd.nVars + 1) * sizeof(weight_t) * nBlocks);
+  cudaMalloc(&f_d.var_soft_orig, (fmd.nVars + 1) * sizeof(weight_t) * nBlocks);
 
-  cudaMalloc(&f_d.var_scores, (f_d.nVars + 1) * sizeof(float) * nBlocks);
-  cudaMalloc(&f_d.var_hard_orig, (f_d.nVars + 1) * sizeof(weight_t) * nBlocks);
-  cudaMalloc(&f_d.var_soft_orig, (f_d.nVars + 1) * sizeof(weight_t) * nBlocks);
+  cudaMalloc(&f_d.best_model, (2 * fmd.nVars + 1) * sizeof(unsigned) * nBlocks);
 
-  cudaMalloc(&f_d.best_model, (2 * f_d.nVars + 1) * sizeof(unsigned) * nBlocks);
-
-  cudaMemcpy(f_d.model, model.data(), (f_d.nVars + 1) * sizeof(unsigned) * nBlocks,
+  cudaMemcpy(f_d.model, model.data(), (fmd.nVars + 1) * sizeof(unsigned) * nBlocks,
              cudaMemcpyHostToDevice);
-  cudaMemcpy(f_d.best_model, model.data(), (f_d.nVars + 1) * sizeof(unsigned),
+  cudaMemcpy(f_d.best_model, model.data(), (fmd.nVars + 1) * sizeof(unsigned),
              cudaMemcpyHostToDevice);
 }
 
-void free_formula_d(MaxSATFormula &f, MaxSATFormula_d &f_d) {
+void free_formula_d(MaxSATFormula& f, MaxSATFormulaConstant_d& fconst_d, MaxSATFormula_d& f_d) {
   delete[] f.best_model;
 
-  cudaFree(f_d.hard_clauses_lits);
-  cudaFree(f_d.soft_clauses_lits);
-  cudaFree(f_d.hard_clauses);
-  cudaFree(f_d.soft_clauses);
-  cudaFree(f_d.soft_weights_orig);
+  cudaFree(fconst_d.hard_clauses_lits);
+  cudaFree(fconst_d.soft_clauses_lits);
+  cudaFree(fconst_d.hard_clauses);
+  cudaFree(fconst_d.soft_clauses);
+  cudaFree(fconst_d.soft_weights_orig);
 
   cudaFree(f_d.hard_weights);
   cudaFree(f_d.soft_weights);

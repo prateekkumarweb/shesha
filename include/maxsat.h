@@ -21,7 +21,15 @@ struct MaxSATFormula {
   unsigned* best_model;
 };
 
-struct MaxSATFormula_d {
+struct MaxSATFormulaConstant_d {
+  unsigned* hard_clauses_lits;  // nHardLits
+  unsigned* soft_clauses_lits;  // nSoftLits
+  unsigned* hard_clauses;       // nHardClauses + 1
+  unsigned* soft_clauses;       // nSoftClauses + 1
+  weight_t* soft_weights_orig;  // nSoftClauses
+};
+
+struct FormulaMetadata {
   unsigned nVars;
   unsigned nClauses;
   unsigned nHardLits;
@@ -29,17 +37,9 @@ struct MaxSATFormula_d {
   unsigned nHardClauses;
   unsigned nSoftClauses;
   weight_t sum_soft_weights;
+};
 
-  unsigned nThreads;
-  unsigned nBlocks;
-
-  // Doesn't change
-  unsigned* hard_clauses_lits;  // nHardLits
-  unsigned* soft_clauses_lits;  // nSoftLits
-  unsigned* hard_clauses;       // nHardClauses + 1
-  unsigned* soft_clauses;       // nSoftClauses + 1
-  weight_t* soft_weights_orig;  // nSoftClauses
-
+struct MaxSATFormula_d {
   // Changes
   weight_t* hard_weights;  // nHardClauses
   weight_t* soft_weights;  // nSoftClauses
@@ -56,9 +56,9 @@ struct MaxSATFormula_d {
 };
 
 bool parse_formula(std::istream& in, MaxSATFormula& f);
-void alloc_formula_d(MaxSATFormula& f, MaxSATFormula_d& f_d, unsigned nThreads,
+void alloc_formula_d(MaxSATFormula& f, MaxSATFormulaConstant_d& fconst_d, MaxSATFormula_d& f_d, FormulaMetadata& fmd, unsigned nThreads,
                      unsigned nBlocks, std::vector<unsigned>& model);
-void free_formula_d(MaxSATFormula& f, MaxSATFormula_d& f_d);
+void free_formula_d(MaxSATFormula& f, MaxSATFormulaConstant_d& fconst_d, MaxSATFormula_d& f_d);
 void print_model(MaxSATFormula& f, unsigned nBlocks);
 
 #endif  // MAXSAT_H
